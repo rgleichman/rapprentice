@@ -14,7 +14,7 @@ parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx",
     default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
 
 parser.add_argument("--interactive",action="store_true")
-
+parser.add_argument("--choice",choices=["manual", "costs"], default="manual")
 args = parser.parse_args()
 
 if args.fake_data_segment is None: assert args.execution==1
@@ -51,6 +51,8 @@ import os, numpy as np, h5py, os.path as osp
 from numpy import asarray
 import importlib
 import subprocess
+
+import pickle, scipy.spatial.distance as ssd
 
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
@@ -187,17 +189,70 @@ def exec_traj_maybesim(bodypart2traj):
 
 
 
-def find_closest(demofile, new_xyz):
+def choose_segment(demofile, new_xyz):
+    if args.choice == "manual":
+        return manual_choose(demofile, new_xyz)
+    elif args.choice == "costs":
+        "Will compute and print the forward and inverse costs."
+        return find_closest_human(demofile, new_xyz)
+    else:
+        raise NotImplementedError("unrecognized choose mode argument")
+    
+def manual_choose(demofile, new_xyz):
     "for now, just prompt the user"
     seg_names = demofile.keys()
     print "choose from the following options (type an integer)"
     for (i, seg_name) in enumerate(seg_names):
         print "%i: %s"%(i,seg_name)
-    choice_ind = task_execution.request_int_in_range(len(seg_names))
-    chosen_seg = seg_names[choice_ind] 
+    while True:
+        try:
+            choice_ind = int(raw_input())
+            chosen_seg = seg_names[choice_ind] 
+            break
+        except (IndexError, ValueError):
+            print "invalid selection. try again"
     return chosen_seg
             
+def find_closest_human(demofile, new_xyz):
+    "for now, just prompt the user"
+    seg_names = demofile.keys()
+    print "choose from the following options (type an integer)"
+    for (i, seg_name) in enumerate(seg_names):
+        print "%i: %s"%(i,seg_name)
+    while True:
+        try:
+            choice_ind = int(raw_input())
+            chosen_seg = seg_names[choice_ind]
+            seg_info =  demofile[chosen_seg]
+            old_xyz = np.squeeze(seg_info["cloud_xyz"])
+            handles = []
+            handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
+            handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
             
+            f = registration.tps_rpm(old_xyz, new_xyz, plot_cb = tpsrpm_plot_cb,plotting=1)
+            handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
+            inv_f = registration.tps_rpm(new_xyz, old_xyz)
+            K = -ssd.squareform(ssd.pdist(f.x_na))
+            w = f.w_ng
+            inv_tps_cost = np.trace(w.T.dot(K).dot(w))
+            K = -ssd.squareform(ssd.pdist(inv_f.x_na))
+            w = inv_f.w_ng
+            tps_cost = np.trace(w.T.dot(K).dot(w))
+           
+            print "Inverse TPS Cost: %f"%(inv_tps_cost)
+            print "TPS Cost: %f"%(tps_cost)
+            response = raw_input()
+            break
+        except (IndexError, ValueError):
+            print "invalid selection. try again"
+        #print "confirm selection (y/n)"
+        #response = raw_input()
+        #if response == "y":
+        #    break
+        #print "choose from the following options (type an integer)"
+        #for (i, seg_name) in enumerate(seg_names):
+        #    print "%i: %s"%(i,seg_name)
+    return f, chosen_seg           
 def arm_moved(joint_traj):    
     return ((joint_traj[1:] - joint_traj[:-1]).ptp(axis=0) > .05).any()
         
@@ -235,6 +290,7 @@ def main():
         Globals.robot = Globals.env.GetRobots()[0]
 
     if not args.fake_data_segment:
+        subprocess.call("killall XnSensorServer", shell=True)
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
 
@@ -269,8 +325,10 @@ def main():
         redprint("Finding closest demonstration")
         if args.fake_data_segment:
             seg_name = args.fake_data_segment
+        elif args.choice == "costs":
+            f, seg_name = choose_segment(demofile, new_xyz)
         else:
-            seg_name = find_closest(demofile, new_xyz)
+            seg_name = choose_segment(demofile, new_xyz)
         
         seg_info = demofile[seg_name]
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
@@ -278,18 +336,14 @@ def main():
         ################################
 
         redprint("Generating end-effector trajectory")    
-
-        handles = []
-        old_xyz = np.squeeze(seg_info["cloud_xyz"])
-        handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
-        handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
-
-
-        f = registration.tps_rpm(old_xyz, new_xyz, plot_cb = tpsrpm_plot_cb,plotting=1)            
+        if not args.choice == "costs":
+            handles = []
+            old_xyz = np.squeeze(seg_info["cloud_xyz"])
+            handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
+            handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
+            f = registration.tps_rpm(old_xyz, new_xyz, plot_cb = tpsrpm_plot_cb,plotting=1)        
         
-        #f = registration.ThinPlateSpline() XXX XXX
-        
-        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
+            handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
         
 
         link2eetraj = {}
@@ -298,9 +352,9 @@ def main():
             old_ee_traj = asarray(seg_info[link_name]["hmat"])
             new_ee_traj = f.transform_hmats(old_ee_traj)
             link2eetraj[link_name] = new_ee_traj
-            
-            handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
-            handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
+            if not args.choice == "costs":
+                handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
+                handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
             
             
             
