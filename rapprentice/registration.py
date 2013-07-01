@@ -50,13 +50,44 @@ class Transformation(object):
             else: raise Exception("unknown orthogonalization method %s"%orthogonalize)
         return newrot_mgd
         
+    def gripper_transform_bases(self, points, old_rotations, orthogonalize=True, orth_method = "cross"):
+        #1. Create small segments for the axes perpendicular to the gripper
+        #2. Find the transform of these segements and their vector representations
+        #3. Find an orthagonal set of bases for these vectors
+        # col(axis) 0 = red = into table
+        # col(axis) 1 = green = axis between grippers 
+        # col(axis) 2 = blue = in direction of rope
+        
+        #Calculating segments
+        seg_length = .001
+        axis_0_segments = [(point - seg_length*axis, point + seg_length*axis) for point, axis in zip(points, old_rotations[:,:,0])]
+        axis_2_segments = [(point - seg_length*axis, point + seg_length*axis) for point, axis in zip(points, old_rotations[:,:,2])]
+        print "axis_0_segments", axis_0_segments
+        print "axis_2_segments", axis_2_segments
+        axis_0_rotation = self.compute_rotation(axis_0_segments)
+        axis_2_rotation = self.compute_rotation(axis_2_segments)
+        new_rotations = [orthogonalize_gripper(axis_0, axis_2) for axis_0, axis_2 in zip(axis_0_rotation, axis_2_rotation)]
+        return new_rotations
+        
+    def compute_rotation(self, segments):
+        #segments is a list of tuples
+        #returns the normalized vector of the transformed second point - the transformed first point
+        starts = [seg[0] for seg in segments]
+        ends = [seg[1] for seg in segments]
+        transformed_starts = self.transform_points(starts)
+        transformed_ends = self.transform_points(ends)
+        vectors = [math_utils.normalize(end - start) for start, end in zip(transformed_starts, transformed_ends)]
+        return vectors
+
     def transform_hmats(self, hmat_mAD):
         """
         Transform (D+1) x (D+1) homogenius matrices
         """
         hmat_mGD = np.empty_like(hmat_mAD)
         hmat_mGD[:,:3,3] = self.transform_points(hmat_mAD[:,:3,3])
-        hmat_mGD[:,:3,:3] = self.transform_bases(hmat_mAD[:,:3,3], hmat_mAD[:,:3,:3])
+        #Modify transform_bases
+        #hmat_mGD[:,:3,:3] = self.transform_bases(hmat_mAD[:,:3,3], hmat_mAD[:,:3,:3])
+        hmat_mGD[:,:3,:3] = self.gripper_transform_bases(hmat_mAD[:,:3,3], hmat_mAD[:,:3,:3])
         return hmat_mGD
         
     def compute_numerical_jacobian(self, x_d, epsilon=0.0001):
@@ -93,7 +124,6 @@ class ThinPlateSpline(Transformation):
     def compute_jacobian(self, x_ma):
         grad_mga = tps.tps_grad(x_ma, self.lin_ag, self.trans_g, self.w_ng, self.x_na)
         return grad_mga
-        
 
 def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
     """
@@ -306,3 +336,20 @@ def orthogonalize3_svd(x_k33):
 
 def orthogonalize3_qr(_x_k33):
     raise NotImplementedError
+
+def orthogonalize_gripper(axis_0, axis_2):
+    #axis_2 is the main axis
+    #axis_0 is the secondary axis
+    #assuming axis_0 cross axis_1 should be axis_2
+
+    #axis_2 stays axis_2
+    #axis_1 = axis_2 cross axis_0
+    #axis_0 = axis_1 cross axis_2
+    
+    rotation_mat = np.zeros((3,3))
+    rotation_mat[:,2] = axis_2
+    axis_1 = math_utils.normalize(np.cross(axis_2, axis_0))
+    rotation_mat[:,1] = axis_1
+    rotation_mat[:,0] =  math_utils.normalize(np.cross(axis_1, axis_2))
+    return rotation_mat
+    
