@@ -59,6 +59,7 @@ class Transformation(object):
         # col(axis) 2 = blue = in direction of rope
         
         #Calculating segments
+        #seg_length is a magic number
         seg_length = .001
         axis_0_segments = [(point - seg_length*axis, point + seg_length*axis) for point, axis in zip(points, old_rotations[:,:,0])]
         axis_2_segments = [(point - seg_length*axis, point + seg_length*axis) for point, axis in zip(points, old_rotations[:,:,2])]

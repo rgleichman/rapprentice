@@ -57,8 +57,6 @@ import pickle, scipy.spatial.distance as ssd
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
     
-
-    
     
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
@@ -95,6 +93,21 @@ def binarize_gripper(angle):
 
     
 def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
+    handles = []
+    def animate_traj(traj, robot):
+        with robot:
+            viewer = trajoptpy.GetViewer(robot.GetEnv())
+            for i, traj_mats in enumerate(zip(traj,new_hmats)):
+                dofs = traj_mats[0]
+                mat = traj_mats[1]
+                print mat
+                robot.SetDOFValues(dofs, robot.GetManipulator(manip_name).GetArmIndices())
+                colors = [(1,0,0,1),(0,1,0,1),(0,0,1,1)]
+                for i in range(3):
+                    point = mat[:3,3]
+                    axis = mat[:3,i]/10
+                    handles.append(Globals.env.drawarrow(p1=point, p2=point + axis, linewidth=0.004, color=colors[i]))
+                viewer.Idle()
         
     n_steps = len(new_hmats)
     assert old_traj.shape[0] == n_steps
@@ -105,6 +118,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     ee_linkname = ee_link.GetName()
     
     init_traj = old_traj.copy()
+    #animate_traj(init_traj, robot)
     #init_traj[0] = robot.GetDOFValues(arm_inds)
 
     request = {
@@ -148,7 +162,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     s = json.dumps(request)
     prob = trajoptpy.ConstructProblem(s, Globals.env) # create object that stores optimization problem
     result = trajoptpy.OptimizeProblem(prob) # do optimization
-    traj = result.GetTraj()    
+    traj = result.GetTraj()
+    #animate_traj(traj, robot)
         
     saver = openravepy.RobotStateSaver(robot)
     pos_errs = []
@@ -355,9 +370,7 @@ def main():
             if not args.choice == "costs":
                 handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
                 handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
-            
-            
-            
+
         # TODO plot
         # plot_warping_and_trajectories(f, old_xyz, new_xyz, old_ee_traj, new_ee_traj)
     
