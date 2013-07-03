@@ -10,4 +10,4 @@ def request_int_in_range(too_high_val):
             break
         else:
             print "invalid selection. try again"
-
+    return choice_ind
