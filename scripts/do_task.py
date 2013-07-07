@@ -146,8 +146,19 @@ def set_gripper_maybesim(lr, is_open, prev_is_open):
     return True
 
 def exec_traj_maybesim(bodypart2traj):
-    def cb(i):
+    def sim_callback(i):
         Globals.sim.step()
+
+    def unwrap(t):
+        # TODO: do something smarter than just checking shape[1]
+        if t.shape[1] == 7:
+            PR2.unwrap_arm_traj_in_place(t)
+        elif t.shape[1] == 14:
+            PR2.unwrap_arm_traj_in_place(t[:,:7])
+            PR2.unwrap_arm_traj_in_place(t[:,7:])
+        else:
+            raise NotImplementedError
+
 
     if args.animation or args.simulation:
         dof_inds = []
@@ -160,16 +171,21 @@ def exec_traj_maybesim(bodypart2traj):
         Globals.robot.SetActiveDOFs(dof_inds)
 
         if args.simulation:
+            # make the trajectory slow enough for the simulation
             full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj)
+
             # in simulation mode, we must make sure to gradually move to the new starting position
             curr_vals = Globals.robot.GetActiveDOFValues()
-            for v in mu.linspace2d(curr_vals, full_traj[0], 10):
-                Globals.robot.SetActiveDOFValues(v)
-                Globals.sim.step()
-                if args.animation: Globals.viewer.Step()
+            transition_traj = np.r_[[curr_vals], [full_traj[0]]]
+            unwrap(transition_traj)
+            transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
+            animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=args.interactive,
+                callback=sim_callback if args.simulation else None)
+            full_traj[0] = transition_traj[-1]
+            unwrap(full_traj)
 
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=args.interactive,
-            callback=cb if args.simulation else None)
+            callback=sim_callback if args.simulation else None)
         return True
 
     if args.execution:
@@ -231,14 +247,15 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, x_nd.min(axis=0), x_nd.max(axis=0), xres = .1, yres = .1, zres = .04))
     Globals.viewer.Step()
 
-def load_fake_data_segment(demofile):
+def load_fake_data_segment(demofile, set_robot_state=True):
     fake_seg = demofile[args.fake_data_segment]
     new_xyz = np.squeeze(fake_seg["cloud_xyz"])
     hmat = openravepy.matrixFromAxisAngle(args.fake_data_transform[3:6])
     hmat[:3,3] = args.fake_data_transform[0:3]
     new_xyz = new_xyz.dot(hmat[:3,:3].T) + hmat[:3,3][None,:]
     r2r = ros2rave.RosToRave(Globals.robot, asarray(fake_seg["joint_states"]["name"]))
-    r2r.set_values(Globals.robot, asarray(fake_seg["joint_states"]["position"][0]))
+    if set_robot_state:
+        r2r.set_values(Globals.robot, asarray(fake_seg["joint_states"]["position"][0]))
     return new_xyz, r2r
 
 def downsample(xyz,v):
@@ -266,7 +283,7 @@ def unif_resample(traj, max_diff, wt = None):
     deg = min(3, sum(goodinds) - 1)
     if deg < 1: return traj, np.arange(len(traj))
     
-    nsteps = int(np.ceil(float(l[-1])/max_diff))
+    nsteps = max(int(np.ceil(float(l[-1])/max_diff)), 2)
     newl = np.linspace(0,l[-1],nsteps)
 
     ncols = traj.shape[1]
@@ -281,8 +298,22 @@ def unif_resample(traj, max_diff, wt = None):
 
     return traj_rs, newt
 
-###################
+def make_table_xml(translation, extents):
+    xml = """
+<Environment>
+  <KinBody name="table">
+    <Body type="static" name="table_link">
+      <Geom type="box">
+        <Translation>%f %f %f</Translation>
+        <extents>%f %f %f</extents>
+      </Geom>
+    </Body>
+  </KinBody>
+</Environment>
+""" % (translation[0], translation[1], translation[2], extents[0], extents[1], extents[2])
+    return xml
 
+###################
 
 class Globals:
     robot = None
@@ -307,18 +338,9 @@ def main():
         Globals.env.Load("robots/pr2-beta-static.zae")
         Globals.robot = Globals.env.GetRobots()[0]
         if args.simulation:
-            table_xml = """
-<Environment>
-  <KinBody name="table">
-    <Body type="static" name="table_link">
-      <Geom type="box">
-        <Translation> 1 0 .635 </Translation>
-        <extents> .85 .55 .01 </extents>
-      </Geom>
-    </Body>
-  </KinBody>
-</Environment>
-"""
+            init_rope_xyz, _ = load_fake_data_segment(demofile, set_robot_state=False)
+            table_height = init_rope_xyz[:,2].mean() - .015
+            table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
             Globals.env.LoadData(table_xml)
             Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
 
@@ -466,10 +488,12 @@ def main():
                 success &= exec_traj_maybesim(bodypart2traj)
 
             if not success: break
-        
+
+        if args.simulation:
+            Globals.sim.settle(animate=args.animation)
+
         redprint("Segment %s result: %s"%(seg_name, success))
-    
-    
+
         if args.fake_data_segment and not args.simulation: break
 
 if __name__ == "__main__":

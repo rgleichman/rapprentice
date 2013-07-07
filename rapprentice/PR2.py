@@ -523,3 +523,8 @@ def closer_joint_angles(pos,seed):
     for i in [2,4,6]:
         result[i] = closer_ang(pos[i],seed[i],0)
     return result
+def unwrap_arm_traj_in_place(traj):
+    assert traj.shape[1] == 7
+    for i in [2,4,6]:
+        traj[:,i] = np.unwrap(traj[:,i])
+    return traj
