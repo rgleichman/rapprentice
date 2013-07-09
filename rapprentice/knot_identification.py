@@ -2,7 +2,6 @@ from collections import defaultdict
 import multiprocessing
 import numpy as np
 from rapprentice import math_utils, LOG
-import snappy
 
 def intersect_segs(ps_n2, q_22):
     """Takes a list of 2d nodes (ps_n2) of a piecewise linear curve and two points representing a single segment (q_22)
@@ -109,6 +108,7 @@ def compute_dt_code(ctl_pts, plotting=False):
     return dt_code
 
 def _dt_code_to_knot(dt_code):
+    import snappy
     try:
         m = snappy.Manifold("DT:[%s]" % ",".join(map(str, dt_code)))
         knot = snappy.HTLinkExteriors.identify(m)

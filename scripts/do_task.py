@@ -154,20 +154,25 @@ def set_gripper_maybesim(lr, is_open, prev_is_open):
 
     return True
 
+def unwrap_arm_traj_in_place(traj):
+    assert traj.shape[1] == 7
+    for i in [2,4,6]:
+        traj[:,i] = np.unwrap(traj[:,i])
+    return traj
+
+def unwrap_in_place(t):
+    # TODO: do something smarter than just checking shape[1]
+    if t.shape[1] == 7:
+        unwrap_arm_traj_in_place(t)
+    elif t.shape[1] == 14:
+        unwrap_arm_traj_in_place(t[:,:7])
+        unwrap_arm_traj_in_place(t[:,7:])
+    else:
+        raise NotImplementedError
+
 def exec_traj_maybesim(bodypart2traj):
     def sim_callback(i):
         Globals.sim.step()
-
-    def unwrap_in_place(t):
-        # TODO: do something smarter than just checking shape[1]
-        if t.shape[1] == 7:
-            PR2.unwrap_arm_traj_in_place(t)
-        elif t.shape[1] == 14:
-            PR2.unwrap_arm_traj_in_place(t[:,:7])
-            PR2.unwrap_arm_traj_in_place(t[:,7:])
-        else:
-            raise NotImplementedError
-
 
     if args.animation or args.simulation:
         dof_inds = []
@@ -317,6 +322,16 @@ def make_table_xml(translation, extents):
 """ % (translation[0], translation[1], translation[2], extents[0], extents[1], extents[2])
     return xml
 
+PR2_L_POSTURES = dict(
+    untucked = [0.4,  1.0,   0.0,  -2.05,  0.0,  -0.1,  0.0],
+    tucked = [0.06, 1.25, 1.79, -1.68, -1.73, -0.10, -0.09],
+    up = [ 0.33, -0.35,  2.59, -0.15,  0.59, -1.41, -0.27],
+    side = [  1.832,  -0.332,   1.011,  -1.437,   1.1  ,  -2.106,  3.074]
+)
+def mirror_arm_joints(x):
+    "mirror image of joints (r->l or l->r)"
+    return np.r_[-x[0],x[1],-x[2],x[3],-x[4],x[5],-x[6]]
+
 ###################
 
 class Globals:
@@ -380,8 +395,8 @@ def main():
         redprint("Acquire point cloud")
 
         if args.simulation:
-            Globals.robot.SetDOFValues(PR2.Arm.L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
-            Globals.robot.SetDOFValues(PR2.mirror_arm_joints(PR2.Arm.L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
+            Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
+            Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
             if curr_step == 1:
                 # create rope
