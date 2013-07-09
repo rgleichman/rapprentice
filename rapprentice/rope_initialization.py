@@ -2,6 +2,7 @@ import networkx as nx, numpy as np, scipy.spatial.distance as ssd, scipy.interpo
 from collections import deque
 import itertools
 from numpy.random import rand
+from rapprentice import knot_identification
 
 
 
@@ -9,7 +10,7 @@ from numpy.random import rand
 
 MIN_SEG_LEN = 3
 
-def find_path_through_point_cloud(xyzs, plotting = False):
+def find_path_through_point_cloud(xyzs, plotting=False, perturb_peak_dist=None, num_perturb_points=7):
     xyzs = np.asarray(xyzs).reshape(-1,3)
     S = skeletonize_point_cloud(xyzs)
     segs = get_segments(S)
@@ -43,10 +44,50 @@ def find_path_through_point_cloud(xyzs, plotting = False):
         else: total_path.extend(segs[node//2][::-1])
 
     total_path_3d = remove_duplicate_rows(np.array([S.node[i]["xyz"] for i in total_path]))
+
+    # perturb the path, if requested
+    if perturb_peak_dist is not None:
+        orig_path_length = np.sqrt(((total_path_3d[1:,:2] - total_path_3d[:-1,:2])**2).sum(axis=1)).sum()
+        perturb_centers = np.linspace(0, len(total_path_3d)-1, num_perturb_points).astype(int)
+        perturb_xy = np.zeros((len(total_path_3d), 2))
+        bandwidth = len(total_path_3d) / (num_perturb_points-1)
+
+        # add a linearly decreasing peak around each perturbation center
+        # (keep doing so randomly until our final rope has no loops)
+        for _ in range(20):
+            for i_center in perturb_centers:
+                angle = np.random.rand() * 2 * np.pi
+                range_min = max(0, i_center - bandwidth)
+                range_max = min(len(total_path_3d), i_center + bandwidth + 1)
+
+                radii = np.linspace(0, perturb_peak_dist, i_center+1-range_min)
+                perturb_xy[range_min:i_center+1,:] += np.c_[radii*np.cos(angle), radii*np.sin(angle)]
+
+                radii = np.linspace(perturb_peak_dist, 0, range_max-i_center)
+                perturb_xy[i_center+1:range_max,:] += np.c_[radii*np.cos(angle), radii*np.sin(angle)][1:,:]
+
+            unscaled_path_2d = total_path_3d[:,:2] + perturb_xy
+            if not knot_identification.rope_has_intersections(unscaled_path_2d):
+                break
+
+        # re-scale to match path length of original rope
+        center = np.mean(unscaled_path_2d, axis=0)
+        lo, curr, hi = 0, 1, 10
+        for _ in range(10):
+            tmp_path_2d = curr*(unscaled_path_2d - center) + center
+            path_length = np.sqrt(((tmp_path_2d[1:] - tmp_path_2d[:-1])**2).sum(axis=1)).sum()
+            if abs(path_length - orig_path_length) < .01:
+                break
+            if path_length > orig_path_length:
+                hi = curr
+            elif path_length < orig_path_length:
+                lo = curr
+            curr = (lo + hi) / 2.
+        total_path_3d[:,:2] = tmp_path_2d
+
     total_path_3d = unif_resample(total_path_3d, seg_len=.02, tol=.003) # tolerance of 1mm
     total_path_3d = unif_resample(total_path_3d, seg_len=.02, tol=.003) # tolerance of 1mm
 #    total_path_3d = unif_resample(total_path_3d, seg_len=.02, tol=.003) # tolerance of 1mm
-
 
     if plotting:
         mlab.figure(2); mlab.clf()

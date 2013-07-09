@@ -26,13 +26,20 @@ parser.add_argument("--select_manual", action="store_true")
 parser.add_argument("--fake_data_segment",type=str)
 parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),
     default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
+parser.add_argument("--sim_init_perturb_radius", type=float, default=None)
+parser.add_argument("--sim_init_perturb_num_points", type=int, default=7)
+parser.add_argument("--sim_desired_knot_name", type=str)
+parser.add_argument("--max_steps_before_failure", type=int, default=-1)
+parser.add_argument("--random_seed", type=int, default=None)
 
 parser.add_argument("--interactive",action="store_true")
+parser.add_argument("--log", type=str, default="", help="")
 
 args = parser.parse_args()
 
 if args.fake_data_segment is None: assert args.execution==1
 if args.simulation: assert args.execution == 0 and args.fake_data_segment is not None
+if args.random_seed is not None: np.random.seed(args.random_seed)
 
 ###################
 
@@ -55,10 +62,9 @@ If you're using fake data, don't update it.
 
 """
 
-
 from rapprentice import registration, colorize, berkeley_pr2, \
      animate_traj, ros2rave, plotting_openrave, task_execution, \
-     planning, tps, func_utils, resampling, ropesim
+     planning, tps, func_utils, resampling, ropesim, knot_identification, rope_initialization
 from rapprentice import math_utils as mu
 from rapprentice.yes_or_no import yes_or_no
 
@@ -71,6 +77,7 @@ except ImportError:
 import cloudprocpy, trajoptpy, openravepy
 import os, numpy as np, h5py
 from numpy import asarray
+import atexit
 import importlib
 
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
@@ -149,7 +156,7 @@ def exec_traj_maybesim(bodypart2traj):
     def sim_callback(i):
         Globals.sim.step()
 
-    def unwrap(t):
+    def unwrap_in_place(t):
         # TODO: do something smarter than just checking shape[1]
         if t.shape[1] == 7:
             PR2.unwrap_arm_traj_in_place(t)
@@ -177,15 +184,15 @@ def exec_traj_maybesim(bodypart2traj):
             # in simulation mode, we must make sure to gradually move to the new starting position
             curr_vals = Globals.robot.GetActiveDOFValues()
             transition_traj = np.r_[[curr_vals], [full_traj[0]]]
-            unwrap(transition_traj)
+            unwrap_in_place(transition_traj)
             transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
             animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=args.interactive,
-                callback=sim_callback if args.simulation else None)
+                callback=sim_callback if args.simulation else None, step_viewer=args.animation)
             full_traj[0] = transition_traj[-1]
-            unwrap(full_traj)
+            unwrap_in_place(full_traj)
 
         animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=args.interactive,
-            callback=sim_callback if args.simulation else None)
+            callback=sim_callback if args.simulation else None, step_viewer=args.animation)
         return True
 
     if args.execution:
@@ -306,6 +313,7 @@ def make_table_xml(translation, extents):
       <Geom type="box">
         <Translation>%f %f %f</Translation>
         <extents>%f %f %f</extents>
+        <diffuseColor>.96 .87 .70</diffuseColor>
       </Geom>
     </Body>
   </KinBody>
@@ -320,12 +328,22 @@ class Globals:
     env = None
     pr2 = None
     sim = None
+    log = None
 
 def main():
 
     demofile = h5py.File(args.h5file, 'r')
     
     trajoptpy.SetInteractive(args.interactive)
+
+    if not args.log:
+        from datetime import datetime
+        args.log = "log_%s.pkl" % datetime.now().isoformat()
+    redprint("Writing log to file %s" % args.log)
+    Globals.exec_log = task_execution.ExecutionLog(args.log)
+    atexit.register(Globals.exec_log.close)
+
+    Globals.exec_log(0, "main.args", args)
 
     if args.execution:
         rospy.init_node("exec_task",disable_signals=True)
@@ -339,7 +357,7 @@ def main():
         Globals.robot = Globals.env.GetRobots()[0]
         if args.simulation:
             init_rope_xyz, _ = load_fake_data_segment(demofile, set_robot_state=False)
-            table_height = init_rope_xyz[:,2].mean() - .015
+            table_height = init_rope_xyz[:,2].mean() - .02
             table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
             Globals.env.LoadData(table_xml)
             Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
@@ -354,21 +372,30 @@ def main():
     curr_step = 0
 
     while True:
+        if args.max_steps_before_failure != -1 and curr_step > args.max_steps_before_failure:
+            redprint("Number of steps %d exceeded maximum %d" % (curr_step, args.max_steps_before_failure))
+            break
+
         curr_step += 1
     
         redprint("Acquire point cloud")
 
         if args.simulation:
+            Globals.robot.SetDOFValues(PR2.Arm.L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
+            Globals.robot.SetDOFValues(PR2.mirror_arm_joints(PR2.Arm.L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
+
             if curr_step == 1:
-                # move arms to the side to ensure the rope doesn't collide with the robot
-                Globals.robot.SetDOFValues(PR2.Arm.L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
-                Globals.robot.SetDOFValues(PR2.mirror_arm_joints(PR2.Arm.L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
                 # create rope
                 new_xyz, r2r = load_fake_data_segment(demofile)
-                Globals.sim.set_rope_cloud(new_xyz)
-                Globals.sim.create()
+                Globals.exec_log(curr_step, "acquire_cloud.orig_cloud", new_xyz)
+                rope_nodes = rope_initialization.find_path_through_point_cloud(
+                    new_xyz,
+                    perturb_peak_dist=args.sim_init_perturb_radius,
+                    num_perturb_points=args.sim_init_perturb_num_points)
+                Globals.exec_log(curr_step, "acquire_cloud.init_sim_rope_nodes", rope_nodes)
+                Globals.sim.create(rope_nodes)
 
-            new_xyz = Globals.sim.observe_cloud(upsample=1000)
+            new_xyz = Globals.sim.observe_cloud()
 
         elif args.fake_data_segment:
             new_xyz, r2r = load_fake_data_segment(demofile)
@@ -384,6 +411,8 @@ def main():
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
             new_xyz = cloud_proc_func(rgb, depth, T_w_k)
     
+        Globals.exec_log(curr_step, "acquire_cloud.xyz", new_xyz)
+
         ################################    
         redprint("Finding closest demonstration")
         if args.select_manual:
@@ -393,6 +422,7 @@ def main():
 
         seg_info = demofile[seg_name]
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
+        Globals.exec_log(curr_step, "find_closest_demo.seg_name", seg_name)
     
         ################################
 
@@ -411,6 +441,7 @@ def main():
         f,_ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb = tpsrpm_plot_cb,
                                        plotting=5,rot_reg=np.r_[1e-4,1e-4,1e-1], n_iter=50, reg_init=10, reg_final=.1)
         f = registration.unscale_tps(f, src_params, targ_params)
+        Globals.exec_log(curr_step, "gen_traj.f", f)
         
         handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0)-np.r_[0,0,.1], old_xyz.max(axis=0)+np.r_[0,0,.1], xres = .1, yres = .1, zres = .04))        
 
@@ -423,7 +454,8 @@ def main():
             
             handles.append(Globals.env.drawlinestrip(old_ee_traj[:,:3,3], 2, (1,0,0,1)))
             handles.append(Globals.env.drawlinestrip(new_ee_traj[:,:3,3], 2, (0,1,0,1)))
-    
+        Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
+
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)    
         success = True
         print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
@@ -434,9 +466,7 @@ def main():
 
             ################################    
             redprint("Generating joint trajectory for segment %s, part %i"%(seg_name, i_miniseg))
-            
-            
-            
+
             # figure out how we're gonna resample stuff
             lr2oldtraj = {}
             for lr in 'lr':
@@ -452,7 +482,6 @@ def main():
                 _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
             ####
 
-        
             ### Generate fullbody traj
             bodypart2traj = {}            
             for (lr,old_joint_traj) in lr2oldtraj.items():
@@ -481,16 +510,31 @@ def main():
                 if not set_gripper_maybesim(lr, gripper_open, prev_gripper_open):
                     redprint("Grab %s failed" % lr)
                     success = False
+            if args.simulation:
+                Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_grab"%i_miniseg, Globals.sim.rope.GetNodes())
 
             if not success: break
 
             if len(bodypart2traj) > 0:
                 success &= exec_traj_maybesim(bodypart2traj)
+            if args.simulation:
+                Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_traj"%i_miniseg, Globals.sim.rope.GetNodes())
 
             if not success: break
 
         if args.simulation:
             Globals.sim.settle(animate=args.animation)
+            Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
+
+            knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
+            if knot_name is not None:
+                if knot_name == args.sim_desired_knot_name or args.sim_desired_knot_name is None:
+                    redprint("Identified knot: %s. Success!" % knot_name)
+                    break
+                else:
+                    redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, args.sim_desired_knot_name))
+            else:
+                redprint("Not a knot. Continuing.")
 
         redprint("Segment %s result: %s"%(seg_name, success))
 

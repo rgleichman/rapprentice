@@ -1,6 +1,6 @@
 import bulletsimpy
 import numpy as np
-from rapprentice import math_utils, rope_initialization, retiming
+from rapprentice import math_utils, retiming
 import trajoptpy
 
 def transform(hmat, p):
@@ -60,7 +60,6 @@ class Simulation(object):
     def __init__(self, env, robot):
         self.env = env
         self.robot = robot
-        self.rope_pts = None
         self.bt_env = None
         self.bt_robot = None
         self.rope = None
@@ -74,15 +73,16 @@ class Simulation(object):
         self.rope_params.angLimit = .4
         self.rope_params.linStopErp = .2
 
-    def set_rope_cloud(self, xyz):
-        self.rope_pts = rope_initialization.find_path_through_point_cloud(xyz)
-
-    def create(self):
-        assert self.rope_pts is not None
+    def create(self, rope_pts):
         self.bt_env = bulletsimpy.BulletEnvironment(self.env, [])
         self.bt_env.SetGravity([0, 0, -9.8])
         self.bt_robot = self.bt_env.GetObjectByName(self.robot.GetName())
-        self.rope = bulletsimpy.CapsuleRope(self.bt_env, 'rope', self.rope_pts, self.rope_params)
+        self.rope = bulletsimpy.CapsuleRope(self.bt_env, 'rope', rope_pts, self.rope_params)
+
+        # self.rope.UpdateRave()
+        # self.env.UpdatePublishedBodies()
+        # trajoptpy.GetViewer(self.env).Idle()
+
         self.settle()
 
     def step(self):
@@ -92,6 +92,7 @@ class Simulation(object):
         self.env.UpdatePublishedBodies()
 
     def settle(self, max_steps=100, tol=.001, animate=False):
+        """Keep stepping until the rope doesn't move, up to some tolerance"""
         prev_nodes = self.rope.GetNodes()
         for i in range(max_steps):
             self.bt_env.Step(.01, 200, .005)
@@ -106,7 +107,7 @@ class Simulation(object):
                 prev_nodes = curr_nodes
         self.rope.UpdateRave()
         self.env.UpdatePublishedBodies()
-        print "settled in %d iterations" % i
+        print "settled in %d iterations" % (i+1)
 
     def observe_cloud(self, upsample=0):
         pts = self.rope.GetControlPoints()

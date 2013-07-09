@@ -1,7 +1,7 @@
 import trajoptpy, openravepy
 
 
-def animate_traj(traj, robot, pause=True, restore=True, callback=None):
+def animate_traj(traj, robot, pause=True, step_viewer=True, restore=True, callback=None):
     """make sure to set active DOFs beforehand"""
     if restore: _saver = openravepy.RobotStateSaver(robot)
     viewer = trajoptpy.GetViewer(robot.GetEnv())
@@ -10,4 +10,4 @@ def animate_traj(traj, robot, pause=True, restore=True, callback=None):
         if callback is not None: callback(i)
         robot.SetActiveDOFValues(dofs)
         if pause: viewer.Idle()
-        else: viewer.Step()
+        elif step_viewer: viewer.Step()
