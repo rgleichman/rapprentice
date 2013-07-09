@@ -66,7 +66,7 @@ If you're using fake data, don't update it.
 
 from rapprentice import registration, colorize, berkeley_pr2, \
      animate_traj, ros2rave, plotting_openrave, task_execution, \
-     planning, tps, func_utils, resampling, ropesim, knot_identification, rope_initialization, clouds
+     planning, tps, func_utils, resampling, ropesim, rope_initialization, clouds
 from rapprentice import math_utils as mu
 from rapprentice.yes_or_no import yes_or_no
 
@@ -525,6 +525,7 @@ def main():
             Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
 
             if args.sim_desired_knot_name is not None:
+                from rapprentice import knot_identification
                 knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
                 if knot_name is not None:
                     if knot_name == args.sim_desired_knot_name or args.sim_desired_knot_name == "any":
