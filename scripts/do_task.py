@@ -31,7 +31,7 @@ parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx",
     default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
 parser.add_argument("--sim_init_perturb_radius", type=float, default=None)
 parser.add_argument("--sim_init_perturb_num_points", type=int, default=7)
-parser.add_argument("--sim_desired_knot_name", type=str)
+parser.add_argument("--sim_desired_knot_name", type=str, default=None)
 parser.add_argument("--max_steps_before_failure", type=int, default=-1)
 parser.add_argument("--random_seed", type=int, default=None)
 
@@ -42,7 +42,6 @@ args = parser.parse_args()
 
 if args.fake_data_segment is None: assert args.execution==1
 if args.simulation: assert args.execution == 0 and args.fake_data_segment is not None
-if args.random_seed is not None: np.random.seed(args.random_seed)
 
 ###################
 
@@ -68,7 +67,6 @@ If you're using fake data, don't update it.
 from rapprentice import registration, colorize, berkeley_pr2, \
      animate_traj, ros2rave, plotting_openrave, task_execution, \
      planning, tps, func_utils, resampling, ropesim, knot_identification, rope_initialization, clouds
-     planning, tps, func_utils, resampling, clouds
 from rapprentice import math_utils as mu
 from rapprentice.yes_or_no import yes_or_no
 
@@ -86,8 +84,8 @@ import importlib
 
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
-    
 
+if args.random_seed is not None: np.random.seed(args.random_seed)
     
     
 def redprint(msg):
@@ -526,16 +524,17 @@ def main():
             Globals.sim.settle(animate=args.animation)
             Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
 
-            knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
-            if knot_name is not None:
-                if knot_name == args.sim_desired_knot_name or args.sim_desired_knot_name is None:
-                    redprint("Identified knot: %s. Success!" % knot_name)
-                    Globals.exec_log(curr_step, "result", True, description="identified knot %s" % knot_name)
-                    break
+            if args.sim_desired_knot_name is not None:
+                knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
+                if knot_name is not None:
+                    if knot_name == args.sim_desired_knot_name or args.sim_desired_knot_name == "any":
+                        redprint("Identified knot: %s. Success!" % knot_name)
+                        Globals.exec_log(curr_step, "result", True, description="identified knot %s" % knot_name)
+                        break
+                    else:
+                        redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, args.sim_desired_knot_name))
                 else:
-                    redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, args.sim_desired_knot_name))
-            else:
-                redprint("Not a knot. Continuing.")
+                    redprint("Not a knot. Continuing.")
 
         redprint("Segment %s result: %s"%(seg_name, success))
 
