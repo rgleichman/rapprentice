@@ -252,7 +252,8 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     handles = []
     handles.append(Globals.env.plot3(ypred_nd, 3, (0,1,0,1)))
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, x_nd.min(axis=0), x_nd.max(axis=0), xres = .1, yres = .1, zres = .04))
-    Globals.viewer.Step()
+    if Globals.viewer:
+        Globals.viewer.Step()
 
 def load_fake_data_segment(demofile, set_robot_state=True):
     fake_seg = demofile[args.fake_data_segment]
@@ -329,6 +330,7 @@ class Globals:
     pr2 = None
     sim = None
     log = None
+    viewer = None
 
 def main():
 
@@ -366,7 +368,8 @@ def main():
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
 
-    Globals.viewer = trajoptpy.GetViewer(Globals.env)
+    if args.animation:
+        Globals.viewer = trajoptpy.GetViewer(Globals.env)
 
     #####################
     curr_step = 0
@@ -374,6 +377,7 @@ def main():
     while True:
         if args.max_steps_before_failure != -1 and curr_step > args.max_steps_before_failure:
             redprint("Number of steps %d exceeded maximum %d" % (curr_step, args.max_steps_before_failure))
+            Globals.exec_log(curr_step, "result", False, description="step maximum reached")
             break
 
         curr_step += 1
@@ -530,6 +534,7 @@ def main():
             if knot_name is not None:
                 if knot_name == args.sim_desired_knot_name or args.sim_desired_knot_name is None:
                     redprint("Identified knot: %s. Success!" % knot_name)
+                    Globals.exec_log(curr_step, "result", True, description="identified knot %s" % knot_name)
                     break
                 else:
                     redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, args.sim_desired_knot_name))

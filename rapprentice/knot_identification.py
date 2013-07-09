@@ -1,4 +1,5 @@
 from collections import defaultdict
+import multiprocessing
 import numpy as np
 from rapprentice import math_utils, LOG
 import snappy
@@ -107,11 +108,8 @@ def compute_dt_code(ctl_pts, plotting=False):
     dt_code = [-o[1] for o in out]
     return dt_code
 
-def identify_knot(ctl_pts):
-    """Given control points from a rope, gives a knot name if identified by snappy, or None otherwise"""
+def _dt_code_to_knot(dt_code):
     try:
-        dt_code = compute_dt_code(ctl_pts)
-        print 'dt code', dt_code
         m = snappy.Manifold("DT:[%s]" % ",".join(map(str, dt_code)))
         knot = snappy.HTLinkExteriors.identify(m)
         return knot.name()
@@ -120,12 +118,45 @@ def identify_knot(ctl_pts):
         traceback.print_exc()
         return None
 
+
+def dt_code_to_knot(dt_code):
+    def dt_code_to_knot_wrapper(q, x):
+        result = _dt_code_to_knot(x)
+        q.put(result)
+        q.close()
+
+    q = multiprocessing.Queue(1)
+    proc = multiprocessing.Process(target=dt_code_to_knot_wrapper, args=(q, dt_code))
+    proc.start()
+    TIMEOUT = 5
+    try:
+        result = q.get(True, TIMEOUT)
+    except:
+        LOG.warn("Timeout for knot identification exceeded, assuming no knot")
+        result = None
+    finally:
+        proc.terminate()
+    return result
+
+def identify_knot(ctl_pts):
+    """Given control points from a rope, gives a knot name if identified by snappy, or None otherwise"""
+
+    try:
+        dt_code = compute_dt_code(ctl_pts)
+        print 'dt code', dt_code
+        return dt_code_to_knot(dt_code)
+    except:
+        import traceback
+        traceback.print_exc()
+        return None
+
 def main():
     #dt_code = [8, 6, -4, -10, 2]
     dt_code = [4, 6, 2, -10, 8]
-    m = snappy.Manifold("DT:[%s]" % ",".join(map(str, dt_code)))
-    knot = snappy.HTLinkExteriors.identify(m)
-    print knot.name()
+    # m = snappy.Manifold("DT:[%s]" % ",".join(map(str, dt_code)))
+    # knot = snappy.HTLinkExteriors.identify(m)
+    # print knot.name()
+    print dt_code_to_knot(dt_code)
     return
 
     import cPickle

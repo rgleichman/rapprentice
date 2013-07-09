@@ -5,7 +5,7 @@ from __future__ import division
 import numpy as np
 from rapprentice import LOG
 import rapprentice.math_utils as mu
-import fastrapp
+#import fastrapp
 import scipy.interpolate as si
 import openravepy
 
