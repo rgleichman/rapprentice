@@ -9,6 +9,9 @@ Run in simulation with a translation and a rotation of fake data:
 Run in simulation choosing the closest demo, single threaded
 ./do_task.py ~/Data/all.h5 --fake_data_segment=demo1-seg00 --execution=0  --animation=1  --parallel=0 
 
+Actually run on the robot without pausing or animating 
+./do_task.py ~/Data/overhand2/all.h5 --execution=1 --animation=0
+
 """
 parser = argparse.ArgumentParser(usage=usage)
 parser.add_argument("h5file", type=str)
@@ -64,7 +67,8 @@ If you're using fake data, don't update it.
 
 from rapprentice import registration, colorize, berkeley_pr2, \
      animate_traj, ros2rave, plotting_openrave, task_execution, \
-     planning, tps, func_utils, resampling, ropesim, knot_identification, rope_initialization
+     planning, tps, func_utils, resampling, ropesim, knot_identification, rope_initialization, clouds
+     planning, tps, func_utils, resampling, clouds
 from rapprentice import math_utils as mu
 from rapprentice.yes_or_no import yes_or_no
 
@@ -198,10 +202,10 @@ def exec_traj_maybesim(bodypart2traj):
     if args.execution:
         if not args.prompt or yes_or_no("execute?"):
             pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj)
-            return True
         else:
             return False
 
+    return True
 
 
 def find_closest_manual(demofile, _new_xyz):
@@ -225,13 +229,13 @@ DS_SIZE = .025
 
 @func_utils.once
 def get_downsampled_clouds(demofile):
-    return [downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
+    return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
 
 def find_closest_auto(demofile, new_xyz):
     if args.parallel:
         from joblib import Parallel, delayed
     ds_clouds = get_downsampled_clouds(demofile)
-    ds_new = downsample(new_xyz,DS_SIZE)
+    ds_new = clouds.downsample(new_xyz,DS_SIZE)
     if args.parallel:
         costs = Parallel(n_jobs=3,verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
     else:
@@ -245,7 +249,8 @@ def find_closest_auto(demofile, new_xyz):
             
             
 def arm_moved(joint_traj):    
-    return ((joint_traj[1:] - joint_traj[:-1]).ptp(axis=0) > .05).any()
+    if len(joint_traj) < 2: return False
+    return ((joint_traj[1:] - joint_traj[:-1]).ptp(axis=0) > .01).any()
         
 def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     ypred_nd = f.transform_points(x_nd)
@@ -265,14 +270,6 @@ def load_fake_data_segment(demofile, set_robot_state=True):
     if set_robot_state:
         r2r.set_values(Globals.robot, asarray(fake_seg["joint_states"]["position"][0]))
     return new_xyz, r2r
-
-def downsample(xyz,v):
-    cloud = cloudprocpy.CloudXYZ()
-    xyz1 = np.ones((len(xyz),4),'float')
-    xyz1[:,:3] = xyz
-    cloud.from2dArray(xyz1)
-    cloud = cloudprocpy.downsampleCloud(cloud, v)
-    return cloud.to2dArray()[:,:3]
 
 def unif_resample(traj, max_diff, wt = None):        
     """
@@ -437,13 +434,13 @@ def main():
         handles.append(Globals.env.plot3(old_xyz,5, (1,0,0)))
         handles.append(Globals.env.plot3(new_xyz,5, (0,0,1)))
         
-        old_xyz = downsample(old_xyz, .025)
-        new_xyz = downsample(new_xyz, .025)
+        old_xyz = clouds.downsample(old_xyz, DS_SIZE)
+        new_xyz = clouds.downsample(new_xyz, DS_SIZE)
 
         scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
         scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)        
         f,_ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb = tpsrpm_plot_cb,
-                                       plotting=5,rot_reg=np.r_[1e-4,1e-4,1e-1], n_iter=50, reg_init=10, reg_final=.1)
+                                       plotting=5 if args.animation else 0,rot_reg=np.r_[1e-4,1e-4,1e-1], n_iter=50, reg_init=10, reg_final=.1)
         f = registration.unscale_tps(f, src_params, targ_params)
         Globals.exec_log(curr_step, "gen_traj.f", f)
         
@@ -476,9 +473,8 @@ def main():
             for lr in 'lr':
                 manip_name = {"l":"leftarm", "r":"rightarm"}[lr]                 
                 old_joint_traj = asarray(seg_info[manip_name][i_start:i_end+1])
-                print (old_joint_traj[1:] - old_joint_traj[:-1]).ptp(axis=0), i_start, i_end
+                #print (old_joint_traj[1:] - old_joint_traj[:-1]).ptp(axis=0), i_start, i_end
                 if arm_moved(old_joint_traj):       
-                    print lr,"moved",i_start, i_end
                     lr2oldtraj[lr] = old_joint_traj   
             if len(lr2oldtraj) > 0:
                 old_total_traj = np.concatenate(lr2oldtraj.values(), 1)
