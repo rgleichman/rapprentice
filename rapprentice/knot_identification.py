@@ -35,18 +35,18 @@ def compute_dt_code(ctl_pts, plotting=False):
        """
 
     # First, close the loop by introducing extra points under the table and toward the robot (by subtracting z and x values)
-    first_pt, last_pt =  ctl_pts[0], ctl_pts[-1]
-    flipped = False
-    if first_pt[1] > last_pt[1]:
-        first_pt, last_pt = last_pt, first_pt
-        flipped = True
-    min_z = ctl_pts[:,2].min()
-    extra_first_pt, extra_last_pt = first_pt + [-.1, -.1, min_z-1], last_pt + [-.1, .1, min_z-1]
-    if flipped:
-        extra_pts = [extra_first_pt, extra_first_pt + [-1, 0, 0], extra_last_pt + [-1, 0, 0], extra_last_pt, last_pt]
-    else:
-        extra_pts = [extra_last_pt, extra_last_pt + [-1, 0, 0], extra_first_pt + [-1, 0, 0], extra_first_pt, first_pt]
-    ctl_pts = np.append(ctl_pts, extra_pts, axis=0)
+    # first_pt, last_pt =  ctl_pts[0], ctl_pts[-1]
+    # flipped = False
+    # if first_pt[1] > last_pt[1]:
+    #     first_pt, last_pt = last_pt, first_pt
+    #     flipped = True
+    # min_z = ctl_pts[:,2].min()
+    # extra_first_pt, extra_last_pt = first_pt + [-.1, -.1, min_z-1], last_pt + [-.1, .1, min_z-1]
+    # if flipped:
+    #     extra_pts = [extra_first_pt, extra_first_pt + [-1, 0, 0], extra_last_pt + [-1, 0, 0], extra_last_pt, last_pt]
+    # else:
+    #     extra_pts = [extra_last_pt, extra_last_pt + [-1, 0, 0], extra_first_pt + [-1, 0, 0], extra_first_pt, first_pt]
+    # ctl_pts = np.append(ctl_pts, extra_pts, axis=0)
 
     if plotting:
         import trajoptpy, openravepy
@@ -128,7 +128,7 @@ def dt_code_to_knot(dt_code):
     q = multiprocessing.Queue(1)
     proc = multiprocessing.Process(target=dt_code_to_knot_wrapper, args=(q, dt_code))
     proc.start()
-    TIMEOUT = 5
+    TIMEOUT = 1
     try:
         result = q.get(True, TIMEOUT)
     except:
@@ -152,15 +152,17 @@ def identify_knot(ctl_pts):
 
 def main():
     #dt_code = [8, 6, -4, -10, 2]
-    dt_code = [4, 6, 2, -10, 8]
+    #dt_code = [4, 6, 2, -10, 8]
+    dt_code = [4, 6, 2, -8]
     # m = snappy.Manifold("DT:[%s]" % ",".join(map(str, dt_code)))
     # knot = snappy.HTLinkExteriors.identify(m)
     # print knot.name()
-    print dt_code_to_knot(dt_code)
-    return
+    #print dt_code_to_knot(dt_code)
+    #return
 
     import cPickle
-    with open("log_2013-07-08T17:30:24.680829.pkl", "r") as f: log = cPickle.load(f)
+    with open("results/single_example_no_failures_100_03cm_s0.pkl", "r") as f: experiments = cPickle.load(f)
+    log = experiments[2][1]
     rope_nodes = []
     for entry in log:
         if 'sim_rope_nodes_after_full_traj' in entry.name:
