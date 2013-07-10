@@ -13,6 +13,7 @@ parser.add_argument("--num_trials", type=int, default=5)
 parser.add_argument("--perturb_radius", type=float)
 parser.add_argument("--rand_seed_offset", type=int)
 parser.add_argument("--fake", action="store_true")
+parser.add_argument("--start_key", type=str)
 args = parser.parse_args()
 
 SCRIPTS_DIR = "/home/jonathan/code/rapprentice/scripts"
@@ -115,17 +116,19 @@ def make_args_multiple_examples_no_failures():
     return out
 
 def make_args_single_demo_with_own_starting_state():
-    import h5py
-    h5file = osp.join(DATA_DIR, "overhand/all_withends.h5")
-    demofile = h5py.File(h5file, "r")
-    start_keys = [k for k in demofile.keys() if k.startswith("demo") and k.endswith("seg00")]
-    demofile.close()
+    if args.start_key is not None:
+        start_keys = [args.start_key]
+    else:
+        import h5py
+        demofile = h5py.File("/home/jonathan/code/rapprentice/sampledata/overhand/all_withends.h5", "r")
+        start_keys = [k for k in demofile.keys() if k.startswith("demo") and k.endswith("seg00")]
+        demofile.close()
 
     out = []
     for start_key in start_keys:
         for i_trial in range(args.num_trials):
             out.append({
-                "h5file": h5file,
+                "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
                 "fake_data_segment": start_key,
                 "max_steps_before_failure": 20,
                 "perturb_num_points": 7,
