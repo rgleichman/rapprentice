@@ -8,7 +8,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--picloud", action="store_true")
 parser.add_argument("--output_file", type=argparse.FileType("w"))
-parser.add_argument("--mode", choices=["single_example", "multiple_examples", "multiple_examples_no_failures"])
+parser.add_argument("--mode", choices=["single_example_no_failures", "multiple_examples", "multiple_examples_no_failures"])
 parser.add_argument("--num_trials", type=int, default=5)
 parser.add_argument("--perturb_radius", type=float)
 parser.add_argument("--rand_seed_offset", type=int)
@@ -52,7 +52,7 @@ def run_single_experiment(h5file, fake_data_segment, max_steps_before_failure, p
 def run_single_experiment_wrapper(arg_dict):
     return run_single_experiment(**arg_dict)
 
-def make_args_single_example():
+def make_args_single_example_no_failures():
     out = []
     for i_trial in range(args.num_trials):
         out.append({
@@ -62,7 +62,7 @@ def make_args_single_example():
             "perturb_num_points": 7,
             "perturb_radius": args.perturb_radius,
             "random_seed": args.rand_seed_offset + i_trial,
-            "no_failure_examples": 0,
+            "no_failure_examples": 1,
             "only_first_n_examples": 1,
         })
     return out
@@ -100,7 +100,7 @@ def make_args_multiple_examples_no_failures():
 def run_experiments(experiment_args):
     if args.picloud:
         import cloud
-        jids = cloud.map(run_single_experiment_wrapper, experiment_args)
+        jids = cloud.map(run_single_experiment_wrapper, experiment_args, _env="test", _type="c2")
         print "Now waiting for results..."
         results = cloud.result(jids)
         return zip(experiment_args, results)
@@ -108,8 +108,8 @@ def run_experiments(experiment_args):
         return zip(experiment_args, [run_single_experiment(**a) for a in experiment_args])
 
 def main():
-    if args.mode == "single_example":
-        func = make_args_single_example
+    if args.mode == "single_example_no_failures":
+        func = make_args_single_example_no_failures
     elif args.mode == "multiple_examples":
         func = make_args_multiple_examples
     elif args.mode == "multiple_examples_no_failures":
