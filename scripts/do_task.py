@@ -36,6 +36,7 @@ parser.add_argument("--max_steps_before_failure", type=int, default=-1)
 parser.add_argument("--random_seed", type=int, default=None)
 parser.add_argument("--no_failure_examples", type=int, default=0)
 parser.add_argument("--only_first_n_examples", type=int, default=-1)
+parser.add_argument("--only_examples_from_list", type=str)
 
 parser.add_argument("--interactive",action="store_true")
 parser.add_argument("--log", type=str, default="", help="")
@@ -241,6 +242,11 @@ def get_ignored_inds(demofile):
         elif args.only_first_n_examples != -1 and k.startswith("demo"):
             curr_num = int(k[len("demo"):].split("-")[0])
             if curr_num > args.only_first_n_examples:
+                ignore.append(i)
+        elif args.only_examples_from_list and k.startswith("demo"):
+            allowed_examples = set(map(int, args.only_examples_from_list.split(',')))
+            curr_num = int(k[len("demo"):].split("-")[0])
+            if curr_num not in allowed_examples:
                 ignore.append(i)
     print 'Ignoring examples:', [k for (i, k) in enumerate(demofile.keys()) if i in ignore]
     return np.asarray(ignore)
