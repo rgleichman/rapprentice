@@ -1,0 +1,154 @@
+import cPickle
+import tempfile
+import os
+import os.path as osp
+import subprocess
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--picloud", action="store_true")
+parser.add_argument("--output_file", type=argparse.FileType("w"))
+parser.add_argument("--mode", choices=["single_example", "multiple_examples", "multiple_examples_no_failures"])
+parser.add_argument("--num_trials", type=int, default=5)
+args = parser.parse_args()
+
+SCRIPTS_DIR = "/home/jonathan/code/rapprentice/scripts"
+DATA_DIR = "/home/jonathan/code/rapprentice/sampledata"
+if args.picloud:
+    SCRIPTS_DIR = "/home/picloud/rapprentice/scripts"
+    DATA_DIR = "/home/picloud/data"
+
+def run_single_experiment(h5file, fake_data_segment, max_steps_before_failure, perturb_num_points, perturb_radius, random_seed, no_failure_examples, only_first_n_examples):
+    DO_TASK_SCRIPT = osp.join(SCRIPTS_DIR, "do_task.py")
+    PARALLEL = True # is this a good idea on picloud?
+
+    # build command
+    fd, log_filename = tempfile.mkstemp(); os.close(fd)
+    cmd = ["python", DO_TASK_SCRIPT]
+    cmd.append(h5file)
+    cmd.append("--execution=0")
+    cmd.append("--animation=0")
+    cmd.append("--simulation=1")
+    cmd.append("--fake_data_segment=%s" % fake_data_segment)
+    cmd.append("--max_steps_before_failure=%d" % max_steps_before_failure)
+    if PARALLEL: cmd.append("--parallel=1")
+    cmd.append("--sim_init_perturb_num_points=%d" % perturb_num_points)
+    cmd.append("--sim_init_perturb_radius=%f" % perturb_radius)
+    cmd.append("--random_seed=%d" % random_seed)
+    cmd.append("--no_failure_examples=%d" % no_failure_examples)
+    cmd.append("--only_first_n_examples=%d" % only_first_n_examples)
+    cmd.append("--log=%s" % log_filename)
+
+    # run the command
+    print ">>> Running command:", " ".join(cmd)
+    subprocess.call(cmd)
+    with open(log_filename, "r") as f:
+        log_output = cPickle.load(f)
+    os.unlink(log_filename)
+    return log_output
+
+def run_single_experiment_wrapper(arg_dict):
+    return run_single_experiment(**arg_dict)
+
+def make_args_single_example(num_trials):
+    out = []
+    for i_trial in range(num_trials):
+        out.append({
+            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "fake_data_segment": "demo1-seg00",
+            "max_steps_before_failure": 20,
+            "perturb_num_points": 7,
+            "perturb_radius": .03,
+            "random_seed": 2*i_trial,
+            "no_failure_examples": 0,
+            "only_first_n_examples": 1,
+        })
+        out.append({
+            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "fake_data_segment": "demo1-seg00",
+            "max_steps_before_failure": 20,
+            "perturb_num_points": 7,
+            "perturb_radius": .1,
+            "random_seed": 2*i_trial + 1,
+            "no_failure_examples": 0,
+            "only_first_n_examples": 1,
+        })
+    return out
+
+def make_args_multiple_examples(num_trials):
+    out = []
+    for i_trial in range(num_trials):
+        out.append({
+            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "fake_data_segment": "demo1-seg00",
+            "max_steps_before_failure": 20,
+            "perturb_num_points": 7,
+            "perturb_radius": .03,
+            "random_seed": 2*i_trial,
+            "no_failure_examples": 0,
+            "only_first_n_examples": 10,
+        })
+        out.append({
+            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "fake_data_segment": "demo1-seg00",
+            "max_steps_before_failure": 20,
+            "perturb_num_points": 7,
+            "perturb_radius": .1,
+            "random_seed": 2*i_trial + 1,
+            "no_failure_examples": 0,
+            "only_first_n_examples": 10,
+        })
+    return out
+
+def make_args_multiple_examples_no_failures(num_trials):
+    out = []
+    for i_trial in range(num_trials):
+        out.append({
+            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "fake_data_segment": "demo1-seg00",
+            "max_steps_before_failure": 20,
+            "perturb_num_points": 7,
+            "perturb_radius": .03,
+            "random_seed": 2*i_trial,
+            "no_failure_examples": 1,
+            "only_first_n_examples": 10,
+        })
+        out.append({
+            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "fake_data_segment": "demo1-seg00",
+            "max_steps_before_failure": 20,
+            "perturb_num_points": 7,
+            "perturb_radius": .1,
+            "random_seed": 2*i_trial + 1,
+            "no_failure_examples": 1,
+            "only_first_n_examples": 10,
+        })
+    return out
+
+
+def run_experiments(experiment_args):
+    if args.picloud:
+        import cloud
+        jids = cloud.map(run_single_experiment_wrapper, experiment_args)
+        print "Now waiting for results..."
+        results = cloud.result(jids)
+        return zip(experiment_args, results)
+    else:
+        return zip(experiment_args, [run_single_experiment(**a) for a in experiment_args])
+
+
+def main():
+    if args.mode == "single_example":
+        func = make_args_single_example
+    elif args.mode == "multiple_examples":
+        func = make_args_multiple_examples
+    elif args.mode == "multiple_examples_no_failures":
+        func = make_args_multiple_examples_no_failures
+    else:
+        assert False
+
+    results = run_experiments(func(args.num_trials))
+    cPickle.dump(results, args.output_file)
+
+if __name__ == "__main__":
+    main()

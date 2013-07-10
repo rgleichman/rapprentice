@@ -34,6 +34,8 @@ parser.add_argument("--sim_init_perturb_num_points", type=int, default=7)
 parser.add_argument("--sim_desired_knot_name", type=str, default=None)
 parser.add_argument("--max_steps_before_failure", type=int, default=-1)
 parser.add_argument("--random_seed", type=int, default=None)
+parser.add_argument("--no_failure_examples", type=int, default=0)
+parser.add_argument("--only_first_n_examples", type=int, default=-1)
 
 parser.add_argument("--interactive",action="store_true")
 parser.add_argument("--log", type=str, default="", help="")
@@ -231,13 +233,32 @@ def registration_cost(xyz0, xyz1):
 DS_SIZE = .025
 
 @func_utils.once
+def get_ignored_inds(demofile):
+    ignore = []
+    for i, k in enumerate(demofile.keys()):
+        if args.no_failure_examples and "failure" in k:
+            ignore.append(i)
+        elif args.only_first_n_examples != -1 and k.startswith("demo"):
+            curr_num = int(k[len("demo"):].split("-")[0])
+            if curr_num > args.only_first_n_examples:
+                ignore.append(i)
+    print 'Ignoring examples:', [k for (i, k) in enumerate(demofile.keys()) if i in ignore]
+    return np.asarray(ignore)
+
+@func_utils.once
 def get_downsampled_clouds(demofile):
     return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
+
+def remove_inds(a, inds):
+    return [x for (i, x) in enumerate(a) if i not in inds]
 
 def find_closest_auto(demofile, new_xyz):
     if args.parallel:
         from joblib import Parallel, delayed
-    ds_clouds = get_downsampled_clouds(demofile)
+
+    ignore_inds = get_ignored_inds(demofile)
+    keys = remove_inds(demofile.keys(), ignore_inds)
+    ds_clouds = remove_inds(get_downsampled_clouds(demofile), ignore_inds)
     ds_new = clouds.downsample(new_xyz,DS_SIZE)
     if args.parallel:
         costs = Parallel(n_jobs=3,verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
@@ -248,9 +269,9 @@ def find_closest_auto(demofile, new_xyz):
             print "completed %i/%i"%(i+1, len(ds_clouds))
     print "costs\n",costs
     ibest = np.argmin(costs)
-    return demofile.keys()[ibest]
-            
-            
+    return keys[ibest]
+
+
 def arm_moved(joint_traj):    
     if len(joint_traj) < 2: return False
     return ((joint_traj[1:] - joint_traj[:-1]).ptp(axis=0) > .01).any()
@@ -437,6 +458,11 @@ def main():
         seg_info = demofile[seg_name]
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
         Globals.exec_log(curr_step, "find_closest_demo.seg_name", seg_name)
+
+        if "endstates" in seg_name:
+            redprint("Recognized end state %s. Done!" % seg_name)
+            Globals.exec_log(curr_step, "result", True, description="end state %s" % seg_name)
+            break
     
         ################################
 
