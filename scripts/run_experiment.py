@@ -10,6 +10,8 @@ parser.add_argument("--picloud", action="store_true")
 parser.add_argument("--output_file", type=argparse.FileType("w"))
 parser.add_argument("--mode", choices=["single_example", "multiple_examples", "multiple_examples_no_failures"])
 parser.add_argument("--num_trials", type=int, default=5)
+parser.add_argument("--perturb_radius", type=float)
+parser.add_argument("--rand_seed_offset", type=int)
 args = parser.parse_args()
 
 SCRIPTS_DIR = "/home/jonathan/code/rapprentice/scripts"
@@ -50,81 +52,50 @@ def run_single_experiment(h5file, fake_data_segment, max_steps_before_failure, p
 def run_single_experiment_wrapper(arg_dict):
     return run_single_experiment(**arg_dict)
 
-def make_args_single_example(num_trials):
+def make_args_single_example():
     out = []
-    for i_trial in range(num_trials):
+    for i_trial in range(args.num_trials):
         out.append({
             "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
             "fake_data_segment": "demo1-seg00",
             "max_steps_before_failure": 20,
             "perturb_num_points": 7,
-            "perturb_radius": .03,
-            "random_seed": 2*i_trial,
-            "no_failure_examples": 0,
-            "only_first_n_examples": 1,
-        })
-        out.append({
-            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
-            "fake_data_segment": "demo1-seg00",
-            "max_steps_before_failure": 20,
-            "perturb_num_points": 7,
-            "perturb_radius": .1,
-            "random_seed": 2*i_trial + 1,
+            "perturb_radius": args.perturb_radius,
+            "random_seed": args.rand_seed_offset + i_trial,
             "no_failure_examples": 0,
             "only_first_n_examples": 1,
         })
     return out
 
-def make_args_multiple_examples(num_trials):
+def make_args_multiple_examples():
     out = []
-    for i_trial in range(num_trials):
+    for i_trial in range(args.num_trials):
         out.append({
             "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
             "fake_data_segment": "demo1-seg00",
             "max_steps_before_failure": 20,
             "perturb_num_points": 7,
-            "perturb_radius": .03,
-            "random_seed": 2*i_trial,
-            "no_failure_examples": 0,
-            "only_first_n_examples": 10,
-        })
-        out.append({
-            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
-            "fake_data_segment": "demo1-seg00",
-            "max_steps_before_failure": 20,
-            "perturb_num_points": 7,
-            "perturb_radius": .1,
-            "random_seed": 2*i_trial + 1,
+            "perturb_radius": args.perturb_radius,
+            "random_seed": args.rand_seed_offset + i_trial,
             "no_failure_examples": 0,
             "only_first_n_examples": 10,
         })
     return out
 
-def make_args_multiple_examples_no_failures(num_trials):
+def make_args_multiple_examples_no_failures():
     out = []
-    for i_trial in range(num_trials):
+    for i_trial in range(args.num_trials):
         out.append({
             "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
             "fake_data_segment": "demo1-seg00",
             "max_steps_before_failure": 20,
             "perturb_num_points": 7,
-            "perturb_radius": .03,
-            "random_seed": 2*i_trial,
-            "no_failure_examples": 1,
-            "only_first_n_examples": 10,
-        })
-        out.append({
-            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
-            "fake_data_segment": "demo1-seg00",
-            "max_steps_before_failure": 20,
-            "perturb_num_points": 7,
-            "perturb_radius": .1,
-            "random_seed": 2*i_trial + 1,
+            "perturb_radius": args.perturb_radius,
+            "random_seed": args.rand_seed_offset + i_trial,
             "no_failure_examples": 1,
             "only_first_n_examples": 10,
         })
     return out
-
 
 def run_experiments(experiment_args):
     if args.picloud:
@@ -136,7 +107,6 @@ def run_experiments(experiment_args):
     else:
         return zip(experiment_args, [run_single_experiment(**a) for a in experiment_args])
 
-
 def main():
     if args.mode == "single_example":
         func = make_args_single_example
@@ -147,7 +117,7 @@ def main():
     else:
         assert False
 
-    results = run_experiments(func(args.num_trials))
+    results = run_experiments(func())
     cPickle.dump(results, args.output_file)
 
 if __name__ == "__main__":
