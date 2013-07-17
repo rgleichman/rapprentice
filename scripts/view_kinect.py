@@ -4,7 +4,7 @@ import cloudprocpy, cv2
 import numpy as np
 import subprocess
 
-subprocess.call("killall XnSensorServer", shell=True)
+subprocess.call("sudo killall XnSensorServer", shell=True)
 
 cmap = np.zeros((256, 3),dtype='uint8')
 cmap[:,0] = range(256)
