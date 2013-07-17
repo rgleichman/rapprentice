@@ -16,8 +16,8 @@ parser.add_argument("--fake", action="store_true")
 parser.add_argument("--start_key", type=str)
 args = parser.parse_args()
 
-SCRIPTS_DIR = "/home/jonathan/code/rapprentice/scripts"
-DATA_DIR = "/home/jonathan/code/rapprentice/sampledata"
+SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
+DATA_DIR = "/home/henrylu/Data/overhand"
 if args.picloud:
     SCRIPTS_DIR = "/home/picloud/rapprentice/scripts"
     DATA_DIR = "/home/picloud/data"
@@ -59,7 +59,7 @@ def make_args_single_example_no_failures():
     out = []
     for i_trial in range(args.num_trials):
         out.append({
-            "h5file": osp.join(DATA_DIR, "overhand/all_withends.h5"),
+            "h5file": osp.join(DATA_DIR, "all.h5"),
             "fake_data_segment": "demo1-seg00",
             "max_steps_before_failure": 20,
             "perturb_num_points": 7,
