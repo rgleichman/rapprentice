@@ -189,13 +189,15 @@ def exec_traj_maybesim(bodypart2traj):
 
         if args.simulation:
             # make the trajectory slow enough for the simulation
-            full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj)
+            #orig full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj)
+            full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj, max_cart_vel=.01)
 
             # in simulation mode, we must make sure to gradually move to the new starting position
             curr_vals = Globals.robot.GetActiveDOFValues()
             transition_traj = np.r_[[curr_vals], [full_traj[0]]]
             unwrap_in_place(transition_traj)
             transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
+            #transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.005)
             animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=args.interactive,
                 callback=sim_callback if args.simulation else None, step_viewer=args.animation)
             full_traj[0] = transition_traj[-1]

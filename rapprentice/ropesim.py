@@ -67,13 +67,17 @@ class Simulation(object):
 
         self.rope_params = bulletsimpy.CapsuleRopeParams()
         self.rope_params.radius = 0.005
-        self.rope_params.angStiffness = .1
-        self.rope_params.angDamping = 1
-        self.rope_params.linDamping = .75
+        #orig self.rope_params.angStiffness = .1
+        self.rope_params.angStiffness = 17
+        #orig self.rope_params.angDamping = 1
+        self.rope_params.angDamping = 0.7
+        #orig self.rope_params.linDamping = .75
+        self.rope_params.linDamping = 0
         self.rope_params.angLimit = .4
         self.rope_params.linStopErp = .2
 
     def create(self, rope_pts):
+        bulletsimpy.sim_params.friction = 1
         self.bt_env = bulletsimpy.BulletEnvironment(self.env, [])
         self.bt_env.SetGravity([0, 0, -9.8])
         self.bt_robot = self.bt_env.GetObjectByName(self.robot.GetName())
