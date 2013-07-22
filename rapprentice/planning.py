@@ -2,15 +2,15 @@ import openravepy,trajoptpy, numpy as np, json
 
 
 def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
-        
+    """Given a starting trajoctory and gripper possitions and orientations, return the full robot trajectory."""
     n_steps = len(new_hmats)
     assert old_traj.shape[0] == n_steps
     assert old_traj.shape[1] == 7
-    
+
     arm_inds  = robot.GetManipulator(manip_name).GetArmIndices()
 
     ee_linkname = ee_link.GetName()
-    
+
     init_traj = old_traj.copy()
     #init_traj[0] = robot.GetDOFValues(arm_inds)
 
@@ -28,7 +28,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         {
             "type" : "collision",
             "params" : {"coeffs" : [1],"dist_pen" : [0.01]}
-        }                
+        }
         ],
         "constraints" : [
         ],
@@ -55,8 +55,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     s = json.dumps(request)
     prob = trajoptpy.ConstructProblem(s, robot.GetEnv()) # create object that stores optimization problem
     result = trajoptpy.OptimizeProblem(prob) # do optimization
-    traj = result.GetTraj()    
-        
+    traj = result.GetTraj()
+
     saver = openravepy.RobotStateSaver(robot)
     pos_errs = []
     for i_step in xrange(1,n_steps):
@@ -67,7 +67,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         pos_err = np.linalg.norm(poses[i_step][4:7] - pos)
         pos_errs.append(pos_err)
     pos_errs = np.array(pos_errs)
-        
+
     print "planned trajectory for %s. max position error: %.3f. all position errors: %s"%(manip_name, pos_errs.max(), pos_errs)
-            
-    return traj         
+
+    return traj

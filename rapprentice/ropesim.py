@@ -1,7 +1,6 @@
 import bulletsimpy
 import numpy as np
 from rapprentice import math_utils, retiming
-import trajoptpy
 
 def transform(hmat, p):
     return hmat[:3,:3].dot(p) + hmat[:3,3]
@@ -123,6 +122,9 @@ class Simulation(object):
         return math_utils.interp2d(np.linspace(0, summed_lengths[-1], upsample), summed_lengths, pts)
 
     def grab_rope(self, lr):
+        """Grab the rope with the gripper in simulation and return True if it grabbed it, else False."""
+        #GetNodes returns some sort of list of the positions of the centers of masses of the capsules.
+        #GetControlPoints seems to return some sort of list of the verticies (bend points) of the rope).
         nodes, ctl_pts = self.rope.GetNodes(), self.rope.GetControlPoints()
 
         graspable_nodes = np.array([in_grasp_region(self.robot, lr, n) for n in nodes])
@@ -130,6 +132,7 @@ class Simulation(object):
         graspable_inds = np.flatnonzero(np.logical_or(graspable_nodes, np.logical_or(graspable_ctl_pts[:-1], graspable_ctl_pts[1:])))
         print 'graspable inds for %s: %s' % (lr, str(graspable_inds))
         if len(graspable_inds) == 0:
+            #No part close enough to the gripper to grab, so return False.
             return False
 
         robot_link = self.robot.GetLink("%s_gripper_l_finger_tip_link"%lr)

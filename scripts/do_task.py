@@ -142,6 +142,7 @@ def set_gripper_maybesim(lr, is_open, prev_is_open):
         prev_is_open -- boolean that is true if the gripper was open last step
     May send an open command if is_open is true but prev_is_open is false.
 
+    Return False if the simulated gripper failed to grab the rope, eles return True.
     """
     mult = 1 if args.execution else 5
     open_angle = .08 * mult
@@ -174,6 +175,7 @@ def set_gripper_maybesim(lr, is_open, prev_is_open):
                 if args.interactive:
                     Globals.viewer.Idle()
         # add constraints if necessary
+        #TODO find out what grab_rope does. Add the return value to doctstring
         if not is_open and prev_is_open:
             if not Globals.sim.grab_rope(lr):
                 return False
@@ -326,6 +328,7 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
 
 
 def load_fake_data_segment(demofile, set_robot_state=True):
+    """Do some transform of the pointcloud?"""
     fake_seg = demofile[args.fake_data_segment]
     new_xyz = np.squeeze(fake_seg["cloud_xyz"])
     hmat = openravepy.matrixFromAxisAngle(args.fake_data_transform[3:6])
@@ -410,6 +413,7 @@ class Globals:
 
 
 def main():
+    ### Setup ###
     demofile = h5py.File(args.h5file, 'r')
 
     trajoptpy.SetInteractive(args.interactive)
@@ -419,6 +423,8 @@ def main():
         args.log = "log_%s.pkl" % datetime.now().isoformat()
     redprint("Writing log to file %s" % args.log)
     Globals.exec_log = task_execution.ExecutionLog(args.log)
+
+    #This will flush to the log when the program closes.
     atexit.register(Globals.exec_log.close)
 
     Globals.exec_log(0, "main.args", args)
@@ -434,6 +440,7 @@ def main():
         Globals.env.Load("robots/pr2-beta-static.zae")
         Globals.robot = Globals.env.GetRobots()[0]
         if args.simulation:
+            #Set up the simulation with the table (no rope yet)
             init_rope_xyz, _ = load_fake_data_segment(demofile, set_robot_state=False)
             table_height = init_rope_xyz[:, 2].mean() - .02
             table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
@@ -441,16 +448,18 @@ def main():
             Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
 
     if not args.fake_data_segment:
+        #grabber will return a rgb and pointcload later
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
 
     if args.animation:
         Globals.viewer = trajoptpy.GetViewer(Globals.env)
 
-    #####################
+    ### End Setup ###
     curr_step = 0
 
     while True:
+        #Check if the maximum number of steps has been exceeded. If so then break.
         if args.max_steps_before_failure != -1 and curr_step > args.max_steps_before_failure:
             redprint("Number of steps %d exceeded maximum %d" % (curr_step, args.max_steps_before_failure))
             Globals.exec_log(curr_step, "result", False, description="step maximum reached")
@@ -461,11 +470,13 @@ def main():
         redprint("Acquire point cloud")
 
         if args.simulation:
+            #SetDOFValues sets the joint angles. DOF = degree of feedom
+            #Move the arms back ("side" posture)
             Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
             Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
             if curr_step == 1:
-                # create rope
+                # create rope with optional pertubations
                 new_xyz, r2r = load_fake_data_segment(demofile)
                 Globals.exec_log(curr_step, "acquire_cloud.orig_cloud", new_xyz)
                 rope_nodes = rope_initialization.find_path_through_point_cloud(
@@ -480,7 +491,7 @@ def main():
         elif args.fake_data_segment:
             new_xyz, r2r = load_fake_data_segment(demofile)
 
-        else:
+        else: #Get the rope state from the physical camera
             Globals.pr2.rarm.goto_posture('side')
             Globals.pr2.larm.goto_posture('side')
             Globals.pr2.join_all()
@@ -493,7 +504,7 @@ def main():
 
         Globals.exec_log(curr_step, "acquire_cloud.xyz", new_xyz)
 
-        ################################
+        ### Pick a segment ###
         redprint("Finding closest demonstration")
         if args.select_manual:
             seg_name = find_closest_manual(demofile, new_xyz)
@@ -504,13 +515,14 @@ def main():
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
         Globals.exec_log(curr_step, "find_closest_demo.seg_name", seg_name)
 
+        #TODO  What is this "endstates" in the segment name?
+        #Detect and break if an end state for the rope is reached.
         if "endstates" in seg_name:
             redprint("Recognized end state %s. Done!" % seg_name)
             Globals.exec_log(curr_step, "result", True, description="end state %s" % seg_name)
             break
 
-        ################################
-
+        ###  Begin Registration ###
         redprint("Generating end-effector trajectory")
 
         handles = []
@@ -578,12 +590,13 @@ def main():
                 new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
                 if args.execution:
                     Globals.pr2.update_rave()
+                #Call the planner (eg. trajopt)
                 new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
                 Globals.robot.GetLink(ee_link_name), new_ee_traj_rs, old_joint_traj_rs)
                 part_name = {"l": "larm", "r": "rarm"}[lr]
                 bodypart2traj[part_name] = new_joint_traj
 
-            ################################
+            ### Execute the gripper ###
             redprint("Executing joint trajectory for segment %s, part %i using arms '%s'" % (seg_name, i_miniseg, bodypart2traj.keys()))
 
             for lr in 'lr':
@@ -597,7 +610,7 @@ def main():
 
             if not success:
                 break
-
+            # Execute the robot trajectory
             if len(bodypart2traj) > 0:
                 success &= exec_traj_maybesim(bodypart2traj)
             if args.simulation:
