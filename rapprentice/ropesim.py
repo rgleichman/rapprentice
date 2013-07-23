@@ -65,14 +65,23 @@ class Simulation(object):
         self.constraints = {"l": [], "r": []}
 
         self.rope_params = bulletsimpy.CapsuleRopeParams()
+        #radius: A larger radius means a thicker rope.
         self.rope_params.radius = 0.005
+        #angStiffness: a rope with a higher angular stifness seems to have more resistance to bending.
         #orig self.rope_params.angStiffness = .1
         self.rope_params.angStiffness = 17
+        #A higher angular damping causes the ropes joints to change angle slower.
+        #This can cause the rope to be dragged at an angle by the arm in the air, instead of falling straight.
         #orig self.rope_params.angDamping = 1
         self.rope_params.angDamping = 0.7
         #orig self.rope_params.linDamping = .75
+        #Not sure what linear damping is, but it seems to limit the linear accelertion of centers of masses.
         self.rope_params.linDamping = 0
+        #Angular limit seems to be the minimum angle at which the rope joints can bend.
+        #A higher angular limit increases the minimum radius of curvature of the rope.
         self.rope_params.angLimit = .4
+        #TODO--Find out what the linStopErp is
+        #This could be the tolerance for error when the joint is at or near the joint limit
         self.rope_params.linStopErp = .2
 
     def create(self, rope_pts):
