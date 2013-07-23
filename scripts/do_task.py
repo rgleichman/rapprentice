@@ -1,52 +1,6 @@
 #!/usr/bin/env python
 
-import argparse
-usage = """
 
-Run in simulation with a translation and a rotation of fake data:
-./do_task.py ~/Data/sampledata/overhand/overhand.h5 --fake_data_segment=overhand0_seg00 --execution=0  --animation=1 --select_manual --fake_data_transform .1 .1 .1 .1 .1 .1
-
-Run in simulation choosing the closest demo, single threaded
-./do_task.py ~/Data/all.h5 --fake_data_segment=demo1-seg00 --execution=0  --animation=1  --parallel=0
-
-Actually run on the robot without pausing or animating
-./do_task.py ~/Data/overhand2/all.h5 --execution=1 --animation=0
-
-"""
-parser = argparse.ArgumentParser(usage=usage)
-parser.add_argument("h5file", type=str)
-parser.add_argument("--cloud_proc_func", default="extract_red")
-parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
-
-parser.add_argument("--execution", type=int, default=0)
-parser.add_argument("--animation", type=int, default=0)
-parser.add_argument("--simulation", type=int, default=0)
-parser.add_argument("--parallel", type=int, default=1)
-
-parser.add_argument("--prompt", action="store_true")
-parser.add_argument("--select_manual", action="store_true")
-
-parser.add_argument("--fake_data_segment", type=str)
-parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"),
-    default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
-parser.add_argument("--sim_init_perturb_radius", type=float, default=None)
-parser.add_argument("--sim_init_perturb_num_points", type=int, default=7)
-parser.add_argument("--sim_desired_knot_name", type=str, default=None)
-parser.add_argument("--max_steps_before_failure", type=int, default=-1)
-parser.add_argument("--random_seed", type=int, default=None)
-parser.add_argument("--no_failure_examples", type=int, default=0)
-parser.add_argument("--only_first_n_examples", type=int, default=-1)
-parser.add_argument("--only_examples_from_list", type=str)
-
-parser.add_argument("--interactive", action="store_true")
-parser.add_argument("--log", type=str, default="", help="")
-
-args = parser.parse_args()
-
-if args.fake_data_segment is None:
-    assert args.execution == 1
-if args.simulation:
-    assert args.execution == 0 and args.fake_data_segment is not None
 
 ###################
 
@@ -90,12 +44,7 @@ from numpy import asarray
 import atexit
 import importlib
 
-cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
-cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
-
-if args.random_seed is not None:
-    np.random.seed(args.random_seed)
-
+args = None
 
 def redprint(msg):
     """Print the message to the console in red, bold font."""
@@ -133,7 +82,7 @@ def binarize_gripper(angle):
     thresh = .04
     return angle > thresh
 
-
+#TODO -- Make a no arguments version of this
 def set_gripper_maybesim(lr, is_open, prev_is_open):
     """Opens or closes the gripper. Also steps the simulation?
 
@@ -179,6 +128,43 @@ def set_gripper_maybesim(lr, is_open, prev_is_open):
         if not is_open and prev_is_open:
             if not Globals.sim.grab_rope(lr):
                 return False
+    return True
+
+def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
+    """Opens or closes the gripper. Also steps the simulation?
+
+    Arguments:
+        is_open -- boolean that is true if the gripper should be open
+        prev_is_open -- boolean that is true if the gripper was open last step
+    May send an open command if is_open is true but prev_is_open is false.
+
+    Return False if the simulated gripper failed to grab the rope, eles return True.
+    """
+    mult = 5
+    open_angle = .08 * mult
+    closed_angle = .02 * mult
+
+    target_val = open_angle if is_open else closed_angle
+
+    #elif args.simulation:
+    # release constraints if necessary
+    if is_open and not prev_is_open:
+        Globals.sim.release_rope(lr)
+
+    # execute gripper open/close trajectory
+    joint_ind = Globals.robot.GetJoint("%s_gripper_l_finger_joint" % lr).GetDOFIndex()
+    start_val = Globals.robot.GetDOFValues([joint_ind])[0]
+    joint_traj = np.linspace(start_val, target_val, np.ceil(abs(target_val - start_val) / .02))
+    for val in joint_traj:
+        Globals.robot.SetDOFValues([val], [joint_ind])
+        Globals.sim.step()
+        if animate:
+            Globals.viewer.Step()
+    # add constraints if necessary
+    #TODO find out what grab_rope does. Add the return value to doctstring
+    if not is_open and prev_is_open:
+        if not Globals.sim.grab_rope(lr):
+            return False
     return True
 
 
@@ -241,7 +227,39 @@ def exec_traj_maybesim(bodypart2traj):
             return False
 
     return True
+def exec_traj_sim(bodypart2traj, animate=True):
+    def sim_callback(i):
+        Globals.sim.step()
 
+    #if args.animation or args.simulation:
+    dof_inds = []
+    trajs = []
+    for (part_name, traj) in bodypart2traj.items():
+        manip_name = {"larm": "leftarm", "rarm": "rightarm"}[part_name]
+        dof_inds.extend(Globals.robot.GetManipulator(manip_name).GetArmIndices())
+        trajs.append(traj)
+    full_traj = np.concatenate(trajs, axis=1)
+    Globals.robot.SetActiveDOFs(dof_inds)
+
+    #if args.simulation:
+    # make the trajectory slow enough for the simulation
+    #orig full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj)
+    full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj, max_cart_vel=.01)
+
+    # in simulation mode, we must make sure to gradually move to the new starting position
+    curr_vals = Globals.robot.GetActiveDOFValues()
+    transition_traj = np.r_[[curr_vals], [full_traj[0]]]
+    unwrap_in_place(transition_traj)
+    transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
+    #transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.005)
+    animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=False,
+        callback=sim_callback, step_viewer=animate)
+    full_traj[0] = transition_traj[-1]
+    unwrap_in_place(full_traj)
+
+    animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=False,
+        callback=sim_callback, step_viewer=animate)
+    return True
 
 def find_closest_manual(demofile, _new_xyz):
     "for now, just prompt the user"
@@ -339,6 +357,15 @@ def load_fake_data_segment(demofile, set_robot_state=True):
         r2r.set_values(Globals.robot, asarray(fake_seg["joint_states"]["position"][0]))
     return new_xyz, r2r
 
+def load_segment(demofile, segment, fake_data_transform=[0, 0, 0, 0, 0, 0]):
+    print "segment is", segment
+    fake_seg = demofile[segment]
+    new_xyz = np.squeeze(fake_seg["cloud_xyz"])
+    hmat = openravepy.matrixFromAxisAngle(fake_data_transform[3:6])
+    hmat[:3, 3] = fake_data_transform[0:3]
+    new_xyz = new_xyz.dot(hmat[:3, :3].T) + hmat[:3, 3][None, :]
+    r2r = ros2rave.RosToRave(Globals.robot, asarray(fake_seg["joint_states"]["name"]))
+    return new_xyz, r2r
 
 def unif_resample(traj, max_diff, wt=None):
     """
@@ -411,8 +438,222 @@ class Globals:
     log = None
     viewer = None
 
+def move_sim_arms_to_side():
+    """Moves the simulated arms to the side."""
+    #SetDOFValues sets the joint angles. DOF = degree of feedom
+    #Move the arms back ("side" posture)
+    Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
+    Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
+
+def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, knot='K3a1', animate=True, max_steps_before_failure=3):
+    ### Setup ###
+    demofile = h5py.File(demofile_name, 'r')
+    Globals.env = openravepy.Environment()
+    Globals.env.StopSimulation()
+    Globals.env.Load("robots/pr2-beta-static.zae")
+    Globals.robot = Globals.env.GetRobots()[0]
+    #if args.simulation:
+    #Set up the simulation with the table (no rope yet)
+    new_xyz, r2r = load_segment(demofile, init_rope_state_segment)
+    table_height = new_xyz[:, 2].mean() - .02
+    table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
+    Globals.env.LoadData(table_xml)
+    Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
+    #if args.animation:
+    Globals.viewer = trajoptpy.GetViewer(Globals.env)
+
+    curr_step = 0
+    while True:
+        #TODO -- End condition
+        #TODO -- max_segments logic
+        redprint("Acquire point cloud")
+        #if args.simulation:
+        if max_steps_before_failure != -1 and curr_step > max_steps_before_failure:
+            redprint("Number of steps %d exceeded maximum %d" % (curr_step, max_steps_before_failure))
+            #Globals.exec_log(curr_step, "result", False, description="step maximum reached")
+            break
+        
+        curr_step += 1
+        move_sim_arms_to_side()
+        #TODO -- Possibly refactor this section to be before the loop.
+        if curr_step == 1:
+            # create rope with optional pertubations
+            #Globals.exec_log(curr_step, "acquire_cloud.orig_cloud", new_xyz)
+            rope_nodes = rope_initialization.find_path_through_point_cloud(
+                new_xyz,
+                perturb_peak_dist=perturb_radius,
+                num_perturb_points=perturb_num_points)
+            #Globals.exec_log(curr_step, "acquire_cloud.init_sim_rope_nodes", rope_nodes)
+            Globals.sim.create(rope_nodes)
+
+        new_xyz = Globals.sim.observe_cloud()
+        
+        seg_name = find_closest_manual(demofile, new_xyz)
+        seg_info = demofile[seg_name]
+        
+        handles = []
+        old_xyz = np.squeeze(seg_info["cloud_xyz"])
+        handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
+        handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
+
+        old_xyz = clouds.downsample(old_xyz, DS_SIZE)
+        new_xyz = clouds.downsample(new_xyz, DS_SIZE)
+
+        scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
+        scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
+        f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
+                                       plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.1)
+        f = registration.unscale_tps(f, src_params, targ_params)
+        #Globals.exec_log(curr_step, "gen_traj.f", f)
+
+        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1], old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
+
+        link2eetraj = {}
+        for lr in 'lr':
+            link_name = "%s_gripper_tool_frame" % lr
+            old_ee_traj = asarray(seg_info[link_name]["hmat"])
+            new_ee_traj = f.transform_hmats(old_ee_traj)
+            link2eetraj[link_name] = new_ee_traj
+
+            handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
+            handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
+        #Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
+
+        miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
+        success = True
+        print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
+        for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
+
+
+            ################################
+            redprint("Generating joint trajectory for segment %s, part %i" % (seg_name, i_miniseg))
+
+            # figure out how we're gonna resample stuff
+            lr2oldtraj = {}
+            for lr in 'lr':
+                manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
+                old_joint_traj = asarray(seg_info[manip_name][i_start: i_end + 1])
+                #print (old_joint_traj[1:] - old_joint_traj[:-1]).ptp(axis=0), i_start, i_end
+                if arm_moved(old_joint_traj):
+                    lr2oldtraj[lr] = old_joint_traj
+            if len(lr2oldtraj) > 0:
+                old_total_traj = np.concatenate(lr2oldtraj.values(), 1)
+                JOINT_LENGTH_PER_STEP = .1
+                _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
+            ####
+
+            ### Generate fullbody traj
+            bodypart2traj = {}
+            for (lr, old_joint_traj) in lr2oldtraj.items():
+                manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
+
+                old_joint_traj_rs = mu.interp2d(timesteps_rs, np.arange(len(old_joint_traj)), old_joint_traj)
+
+                ee_link_name = "%s_gripper_tool_frame" % lr
+                new_ee_traj = link2eetraj[ee_link_name][i_start: i_end + 1]
+                new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
+                #if args.execution:
+                #    Globals.pr2.update_rave()
+                #Call the planner (eg. trajopt)
+                new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
+                Globals.robot.GetLink(ee_link_name), new_ee_traj_rs, old_joint_traj_rs)
+                part_name = {"l": "larm", "r": "rarm"}[lr]
+                bodypart2traj[part_name] = new_joint_traj
+
+            ### Execute the gripper ###
+            redprint("Executing joint trajectory for segment %s, part %i using arms '%s'" % (seg_name, i_miniseg, bodypart2traj.keys()))
+
+            for lr in 'lr':
+                gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start])
+                prev_gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start - 1]) if i_start != 0 else False
+                if not set_gripper_sim(lr, gripper_open, prev_gripper_open):
+                    redprint("Grab %s failed" % lr)
+                    success = False
+            if not success:
+                break
+            # Execute the robot trajectory
+            if len(bodypart2traj) > 0:
+                success &= exec_traj_sim(bodypart2traj)
+            #if args.simulation:
+                #Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_traj" % i_miniseg, Globals.sim.rope.GetNodes())
+
+            if not success:
+                break
+
+        #if args.simulation:
+        Globals.sim.settle(animate=True)
+        #Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
+
+        #if args.sim_desired_knot_name is not None:
+        from rapprentice import knot_identification
+        knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
+        if knot_name is not None:
+            if knot_name == knot or knot == "any":
+                redprint("Identified knot: %s. Success!" % knot_name)
+                #Globals.exec_log(curr_step, "result", True, description="identified knot %s" % knot_name)
+                break
+            else:
+                redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, knot))
+        else:
+            redprint("Not a knot. Continuing.")
+
+        redprint("Segment %s result: %s" % (seg_name, success))
+        
 
 def main():
+    import argparse
+    usage = """
+    
+    Run in simulation with a translation and a rotation of fake data:
+    ./do_task.py ~/Data/sampledata/overhand/overhand.h5 --fake_data_segment=overhand0_seg00 --execution=0  --animation=1 --select_manual --fake_data_transform .1 .1 .1 .1 .1 .1
+    
+    Run in simulation choosing the closest demo, single threaded
+    ./do_task.py ~/Data/all.h5 --fake_data_segment=demo1-seg00 --execution=0  --animation=1  --parallel=0
+    
+    Actually run on the robot without pausing or animating
+    ./do_task.py ~/Data/overhand2/all.h5 --execution=1 --animation=0
+    
+    """
+    parser = argparse.ArgumentParser(usage=usage)
+    parser.add_argument("h5file", type=str)
+    parser.add_argument("--cloud_proc_func", default="extract_red")
+    parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
+    
+    parser.add_argument("--execution", type=int, default=0)
+    parser.add_argument("--animation", type=int, default=0)
+    parser.add_argument("--simulation", type=int, default=0)
+    parser.add_argument("--parallel", type=int, default=1)
+    
+    parser.add_argument("--prompt", action="store_true")
+    parser.add_argument("--select_manual", action="store_true")
+    
+    parser.add_argument("--fake_data_segment", type=str)
+    parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"),
+        default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
+    parser.add_argument("--sim_init_perturb_radius", type=float, default=None)
+    parser.add_argument("--sim_init_perturb_num_points", type=int, default=7)
+    parser.add_argument("--sim_desired_knot_name", type=str, default=None)
+    parser.add_argument("--max_steps_before_failure", type=int, default=-1)
+    parser.add_argument("--random_seed", type=int, default=None)
+    parser.add_argument("--no_failure_examples", type=int, default=0)
+    parser.add_argument("--only_first_n_examples", type=int, default=-1)
+    parser.add_argument("--only_examples_from_list", type=str)
+    
+    parser.add_argument("--interactive", action="store_true")
+    parser.add_argument("--log", type=str, default="", help="")
+    global args
+    args = parser.parse_args()
+    print "args =", args
+    if args.fake_data_segment is None:
+        assert args.execution == 1
+    if args.simulation:
+        assert args.execution == 0 and args.fake_data_segment is not None
+           
+    cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
+    cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
+    
+    if args.random_seed is not None:
+        np.random.seed(args.random_seed)
     ### Setup ###
     demofile = h5py.File(args.h5file, 'r')
 
