@@ -139,7 +139,7 @@ class Simulation(object):
         graspable_nodes = np.array([in_grasp_region(self.robot, lr, n) for n in nodes])
         graspable_ctl_pts = np.array([in_grasp_region(self.robot, lr, n) for n in ctl_pts])
         graspable_inds = np.flatnonzero(np.logical_or(graspable_nodes, np.logical_or(graspable_ctl_pts[:-1], graspable_ctl_pts[1:])))
-        print 'graspable inds for %s: %s' % (lr, str(graspable_inds))
+        #print 'graspable inds for %s: %s' % (lr, str(graspable_inds))
         if len(graspable_inds) == 0:
             #No part close enough to the gripper to grab, so return False.
             return False
@@ -156,8 +156,8 @@ class Simulation(object):
                         "frame_in_a": np.linalg.inv(robot_link.GetTransform()).dot(rope_links[i_cnt].GetTransform()),
                         "frame_in_b": np.eye(4),
                         "use_linear_reference_frame_a": False,
-                        "stop_erp": .8,
-                        "stop_cfm": .1,
+                        "stop_erp": 0.8,
+                        "stop_cfm": 0.1,
                         "disable_collision_between_linked_bodies": True,
                     }
                 })

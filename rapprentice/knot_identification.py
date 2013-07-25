@@ -110,9 +110,16 @@ def compute_dt_code(ctl_pts, plotting=False):
 def _dt_code_to_knot(dt_code):
     import snappy
     try:
-        m = snappy.Manifold("DT:[%s]" % ",".join(map(str, dt_code)))
+        print "dt_code=", dt_code
+        if len(dt_code) == 1:            
+            return None
+        snappy_arg = "DT:[%s]" % ",".join(map(str, dt_code))
+        m = snappy.Manifold(snappy_arg)
         knot = snappy.HTLinkExteriors.identify(m)
-        return knot.name()
+        if not (knot is False):
+            return knot.name()
+        else:
+            return None
     except:
         import traceback
         traceback.print_exc()
