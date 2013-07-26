@@ -228,7 +228,7 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
     return f
 
 def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 
-            plotting = False, plot_cb = None):
+            plotting = False, plot_cb = None, old_xyz=None, new_xyz=None):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
     reg_init/reg_final: regularization on curvature
@@ -268,8 +268,8 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         xtarg_nd = (corr_nm/wt_n[:,None]).dot(y_md)
         ytarg_md = (corr_nm/wt_m[None,:]).T.dot(x_nd)
         
-        if plotting and i%plotting==0:
-            plot_cb(x_nd, y_md, xtarg_nd, corr_nm, wt_n, f)
+        if (plotting and i == n_iter -1) or (plotting and i%plotting==0):
+            plot_cb(x_nd, y_md, xtarg_nd, corr_nm, wt_n, f, old_xyz, new_xyz, last_one=(i == n_iter -1))
         
         f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = rot_reg)
         g = fit_ThinPlateSpline(y_md, ytarg_md, bend_coef = regs[i], wt_n=wt_m, rot_coef = rot_reg)

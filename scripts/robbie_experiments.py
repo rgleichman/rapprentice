@@ -36,7 +36,7 @@ def do_these_segments(segments, animate=False):
 	demo1 = "demo1-seg00"
 	demofile = osp.join(DATA_DIR, H5FILE)
 	return_val = do_task.do_several_segments(demofile_name=demofile, init_rope_state_segment=demo1, 
-								perturb_radius=0.15, perturb_num_points=7, segments=segments, animate=animate, filename="do_segments.pkl")
+								perturb_radius=0.1, perturb_num_points=7, segments=segments, animate=animate, filename=None)
 	print "do_segments return val = ", return_val
 	end = time.time()
 	print "seconds taken =", end-start
@@ -48,9 +48,9 @@ def do_segments(animate=False):
 	return do_these_segments(segments, animate)
 
 def main():
-	#do_single_random_task()
+	do_single_random_task()
 	#do_segments(animate=False)
-	do_many_segments(1)
+	#do_many_segments(1)
 	
 if __name__ == "__main__":
     main()
