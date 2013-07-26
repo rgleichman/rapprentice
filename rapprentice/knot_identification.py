@@ -110,8 +110,8 @@ def compute_dt_code(ctl_pts, plotting=False):
 def _dt_code_to_knot(dt_code):
     import snappy
     try:
-        print "dt_code=", dt_code
-        if len(dt_code) == 1:            
+        if len(dt_code) < 3:
+            #A minimum of three crossings are needed for it to be a knot.            
             return None
         snappy_arg = "DT:[%s]" % ",".join(map(str, dt_code))
         m = snappy.Manifold(snappy_arg)

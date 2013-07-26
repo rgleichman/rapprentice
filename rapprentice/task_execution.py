@@ -1,7 +1,8 @@
 """
 Misc functions that are useful in the top-level task-execution scripts
 """
-
+#TODO: unit test this module
+import os
 
 def request_int_in_range(too_high_val):
     while True:
@@ -58,19 +59,29 @@ class ExecutionLog(object):
         self.entries = []
         self.max_unwritten = max_unwritten
         self.num_unwritten = 0
+        self.old_entries = []
+        if os.path.exists(self.filename):
+            with open(self.filename, "r") as f:
+                load_values = cPickle.load(f)
+                if isinstance(load_values, list):
+                    self.old_entries = load_values
+        self.all_entries = self.old_entries
 
     def append(self, entry):
         self.entries.append(entry)
+        self.all_entries = list(self.old_entries)
+        self.all_entries.append(self.entries)
         self.num_unwritten += 1
-        if self.num_unwritten > self.max_unwritten:
-            self.flush()
+        #if self.num_unwritten > self.max_unwritten:
+        #TODO: don't flush as much?
+        self.flush()
 
     def __call__(self, *args, **kwargs):
         self.append(ExecutionLogEntry(*args, **kwargs))
 
     def flush(self):
         with open(self.filename, "w") as f:
-            cPickle.dump(self.entries, f, protocol=cPickle.HIGHEST_PROTOCOL)
+            cPickle.dump(self.all_entries, f, protocol=cPickle.HIGHEST_PROTOCOL)
         self.num_unwritten = 0
 
     def close(self):

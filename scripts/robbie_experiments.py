@@ -25,17 +25,18 @@ def do_many_segments(iterations):
 	print "All results =", results
 	final_results = [result[2] for result in results]
 	print "Final_results =", final_results
-	final_result_ints = [1.0 if result else 0.0 for result in results]
+	final_result_ints = [1.0 if result else 0.0 for result in final_results]
 	successes = reduce(lambda x, y: x + y, final_result_ints)
- 	print "num success =", successes
- 	print "success rate =", successes / iterations
+	print "num success =", successes
+	print "success rate =", successes / iterations
+
 
 def do_these_segments(segments, animate=False):
 	start = time.time()
 	demo1 = "demo1-seg00"
 	demofile = osp.join(DATA_DIR, H5FILE)
 	return_val = do_task.do_several_segments(demofile_name=demofile, init_rope_state_segment=demo1, 
-								perturb_radius=0.0, perturb_num_points=7, segments=segments, animate=animate)
+								perturb_radius=0.15, perturb_num_points=7, segments=segments, animate=animate, filename="do_segments.pkl")
 	print "do_segments return val = ", return_val
 	end = time.time()
 	print "seconds taken =", end-start
@@ -48,8 +49,8 @@ def do_segments(animate=False):
 
 def main():
 	#do_single_random_task()
-	do_segments(animate=False)
-	#do_many_segments(100)
+	#do_segments(animate=False)
+	do_many_segments(1)
 	
 if __name__ == "__main__":
     main()

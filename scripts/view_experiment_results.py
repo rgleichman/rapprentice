@@ -19,8 +19,9 @@ viewer = trajoptpy.GetViewer(env)
 
 if args.inspect_single is not None:
 	experiment_args, log = runs[args.inspect_single]
-
-	print "args:", experiment_args
+	log = runs
+	print "runs=", runs
+	#print "args:", experiment_args
 	print "segs chosen:", ", ".join([entry.data for entry in log if entry.name == "find_closest_demo.seg_name"])
 	for rope_state in [entry.data for entry in log if entry.name == "execute_traj.sim_rope_nodes_after_full_traj"]:
 		handles = []
@@ -30,14 +31,26 @@ if args.inspect_single is not None:
 elif args.check_knots:
 	from rapprentice import knot_identification as ki
 	num_failed = 0
+	total_runs = 0
+	print "runs", runs
 	for i_run, run in enumerate(runs):
-		args, log = run
-		last_rope_state = [entry.data for entry in log[::-1] if entry.name == "execute_traj.sim_rope_nodes_after_full_traj"][0]
-		result = ki.identify_knot(last_rope_state)
-		print i_run, result
-		if result == None:
-			num_failed += 1
-	print "total num failed:", num_failed, "out of", len(runs)
+		log = run
+		for entry in log:
+			if entry.name == "execute_traj.sim_rope_nodes_after_full_traj" and entry.step == 2:
+				total_runs += 1
+				last_rope_state = entry.data
+		#last_rope_state = [entry.data[1] for entry in log[::-1] if entry.name == "execute_traj.sim_rope_nodes_after_full_traj" and entry.data[0]==2][0]
+				result = ki.identify_knot(last_rope_state)
+				print "Trial ", i_run
+				print "Knot ", result
+				handles = []
+				handles.append(env.drawlinestrip(last_rope_state, 5, [1, 0, 0]))
+				viewer.Idle()
+				#print result
+				if result == None:
+					num_failed += 1
+	print "total num failed:", num_failed, "out of", total_runs
+	print "Sucess rate =", float(total_runs - num_failed) / total_runs
 
 else:
 

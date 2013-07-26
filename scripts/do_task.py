@@ -44,6 +44,7 @@ from numpy import asarray
 import atexit
 import importlib
 
+#Don't use args, use globals
 args = None
 
 def redprint(msg):
@@ -432,7 +433,7 @@ class Globals:
     env = None
     pr2 = None
     sim = None
-    log = None
+    exec_log = None
     viewer = None
 
 def move_sim_arms_to_side():
@@ -442,18 +443,38 @@ def move_sim_arms_to_side():
     Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
     Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
-def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, segments, knot='K3a1', animate=True):
+def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, segments, knot='K3a1', animate=True, filename=None):
     """Execute on a random rope state several segments.
     Arguments:
         segments -- A list of the demonstration segments to execute.
     """
+    setup_log(filename)
     demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate)
     results = []
-    for segment in segments:
-        results.append(loop_body(new_xyz, demofile, segment, knot, animate))
+    for i, segment in enumerate(segments):
+        results.append(loop_body(new_xyz, demofile, (lambda _,__: segment), knot, animate, curr_step=i))
     return results
 
-        #TODO  Consider encapsulating these intermedite return values in a class.
+def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, knot='K3a1', animate=True, max_steps_before_failure=3):
+    ### Setup ###
+    demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
+    results = []
+    for i in range(max_steps_before_failure):
+        result = loop_body(new_xyz, demofile, find_closest_manual, knot, animate, curr_step=i)
+        results.append(result)
+        if result:
+            break
+    return results
+
+def setup_log(filename):
+    if filename:
+        if Globals.exec_log is None:
+            redprint("Writing log to file %s" % filename)
+            Globals.exec_log = task_execution.ExecutionLog(filename)
+            #This will flush to the log when the program closes.
+            atexit.register(Globals.exec_log.close)
+    
+#TODO  Consider encapsulating these intermedite return values in a class.
 def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate):
     """For the simulation, this code runs before the main loop."""
     demofile = h5py.File(demofile_name, 'r')
@@ -481,11 +502,12 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.sim.create(rope_nodes)
     return demofile, new_xyz
 
-def loop_body(new_xyz, demofile, segment, knot, animate):
+def loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=None):
     """Do the body of the main task execution loop (ie. do a segment). 
     Arguments:
         curr_step is 0 indexed
-        segment is the key in the demofile to the segment
+        choose_segment is a function that returns the key in the demofile to the segment
+        knot is the knot the rope is checked against
     """
     #TODO -- End condition
     #TODO -- max_segments logic
@@ -496,7 +518,7 @@ def loop_body(new_xyz, demofile, segment, knot, animate):
     #TODO -- Possibly refactor this section to be before the loop.
 
     new_xyz = Globals.sim.observe_cloud()
-    
+    segment = choose_segment(demofile, new_xyz)
     seg_info = demofile[segment]
     
     handles = []
@@ -590,7 +612,8 @@ def loop_body(new_xyz, demofile, segment, knot, animate):
 
     #if args.simulation:
     Globals.sim.settle(animate=animate)
-    #Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
+    if Globals.exec_log:
+        Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
 
     #if args.sim_desired_knot_name is not None:
     from rapprentice import knot_identification
@@ -607,149 +630,6 @@ def loop_body(new_xyz, demofile, segment, knot, animate):
 
     redprint("Segment %s result: %s" % (segment, success))
     return False
-
-def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, knot='K3a1', animate=True, max_steps_before_failure=3):
-    ### Setup ###
-    demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points)
-
-    curr_step = 0
-    while True:
-        
-        #TODO -- End condition
-        #TODO -- max_segments logic
-        redprint("Acquire point cloud")
-        #if args.simulation:
-        if max_steps_before_failure != -1 and curr_step > max_steps_before_failure:
-            redprint("Number of steps %d exceeded maximum %d" % (curr_step, max_steps_before_failure))
-            #Globals.exec_log(curr_step, "result", False, description="step maximum reached")
-            return
-        
-        curr_step += 1
-        move_sim_arms_to_side()
-        #TODO -- Possibly refactor this section to be before the loop.
-        if curr_step == 1:
-            # create rope with optional pertubations
-            #Globals.exec_log(curr_step, "acquire_cloud.orig_cloud", new_xyz)
-            rope_nodes = rope_initialization.find_path_through_point_cloud(
-                new_xyz,
-                perturb_peak_dist=perturb_radius,
-                num_perturb_points=perturb_num_points)
-            #Globals.exec_log(curr_step, "acquire_cloud.init_sim_rope_nodes", rope_nodes)
-            Globals.sim.create(rope_nodes)
-
-        new_xyz = Globals.sim.observe_cloud()
-        
-        seg_name = find_closest_manual(demofile, new_xyz)
-        seg_info = demofile[seg_name]
-        
-        handles = []
-        old_xyz = np.squeeze(seg_info["cloud_xyz"])
-        handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
-        handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
-
-        old_xyz = clouds.downsample(old_xyz, DS_SIZE)
-        new_xyz = clouds.downsample(new_xyz, DS_SIZE)
-
-        scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
-        scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
-        f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
-                                       plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.1)
-        f = registration.unscale_tps(f, src_params, targ_params)
-        #Globals.exec_log(curr_step, "gen_traj.f", f)
-
-        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1], old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
-
-        link2eetraj = {}
-        for lr in 'lr':
-            link_name = "%s_gripper_tool_frame" % lr
-            old_ee_traj = asarray(seg_info[link_name]["hmat"])
-            new_ee_traj = f.transform_hmats(old_ee_traj)
-            link2eetraj[link_name] = new_ee_traj
-
-            handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
-            handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
-        #Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
-
-        miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
-        success = True
-        print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
-        for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
-
-
-            ################################
-            redprint("Generating joint trajectory for segment %s, part %i" % (seg_name, i_miniseg))
-
-            # figure out how we're gonna resample stuff
-            lr2oldtraj = {}
-            for lr in 'lr':
-                manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
-                old_joint_traj = asarray(seg_info[manip_name][i_start: i_end + 1])
-                #print (old_joint_traj[1:] - old_joint_traj[:-1]).ptp(axis=0), i_start, i_end
-                if arm_moved(old_joint_traj):
-                    lr2oldtraj[lr] = old_joint_traj
-            if len(lr2oldtraj) > 0:
-                old_total_traj = np.concatenate(lr2oldtraj.values(), 1)
-                JOINT_LENGTH_PER_STEP = .1
-                _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
-            ####
-
-            ### Generate fullbody traj
-            bodypart2traj = {}
-            for (lr, old_joint_traj) in lr2oldtraj.items():
-                manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
-
-                old_joint_traj_rs = mu.interp2d(timesteps_rs, np.arange(len(old_joint_traj)), old_joint_traj)
-
-                ee_link_name = "%s_gripper_tool_frame" % lr
-                new_ee_traj = link2eetraj[ee_link_name][i_start: i_end + 1]
-                new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
-                #if args.execution:
-                #    Globals.pr2.update_rave()
-                #Call the planner (eg. trajopt)
-                new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
-                Globals.robot.GetLink(ee_link_name), new_ee_traj_rs, old_joint_traj_rs)
-                part_name = {"l": "larm", "r": "rarm"}[lr]
-                bodypart2traj[part_name] = new_joint_traj
-
-            ### Execute the gripper ###
-            redprint("Executing joint trajectory for segment %s, part %i using arms '%s'" % (seg_name, i_miniseg, bodypart2traj.keys()))
-
-            for lr in 'lr':
-                gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start])
-                prev_gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start - 1]) if i_start != 0 else False
-                if not set_gripper_sim(lr, gripper_open, prev_gripper_open):
-                    redprint("Grab %s failed" % lr)
-                    success = False
-            if not success:
-                break
-            # Execute the robot trajectory
-            if len(bodypart2traj) > 0:
-                success &= exec_traj_sim(bodypart2traj)
-            #if args.simulation:
-                #Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_traj" % i_miniseg, Globals.sim.rope.GetNodes())
-
-            if not success:
-                break
-
-        #if args.simulation:
-        Globals.sim.settle(animate=True)
-        #Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
-
-        #if args.sim_desired_knot_name is not None:
-        from rapprentice import knot_identification
-        knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
-        if knot_name is not None:
-            if knot_name == knot or knot == "any":
-                redprint("Identified knot: %s. Success!" % knot_name)
-                #Globals.exec_log(curr_step, "result", True, description="identified knot %s" % knot_name)
-                return
-            else:
-                redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, knot))
-        else:
-            redprint("Not a knot. Continuing.")
-
-        redprint("Segment %s result: %s" % (seg_name, success))
-        
 
 def main():
     import argparse
