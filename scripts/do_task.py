@@ -93,7 +93,12 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
     # execute gripper open/close trajectory
     joint_ind = Globals.robot.GetJoint("%s_gripper_l_finger_joint" % lr).GetDOFIndex()
     start_val = Globals.robot.GetDOFValues([joint_ind])[0]
-    joint_traj = np.linspace(start_val, target_val, np.ceil(abs(target_val - start_val) / .02))
+    #gripper_velocity = 0.2
+    #a smaller number makes the gripper move slower.
+    #if the gripper moves slower then it will fling the rope less.
+    gripper_velocity = 0.005
+    joint_traj = np.linspace(start_val, target_val, np.ceil(abs(target_val - start_val) / gripper_velocity))
+    #print "joint_traj after retime =", joint_traj
     for val in joint_traj:
         Globals.robot.SetDOFValues([val], [joint_ind])
         Globals.sim.step()
@@ -157,17 +162,6 @@ def exec_traj_sim(bodypart2traj, animate):
         callback=sim_callback, step_viewer=animate)
     return True
 
-def find_closest_manual(demofile, _new_xyz):
-    "for now, just prompt the user"
-    seg_names = demofile.keys()
-    print "choose from the following options (type an integer)"
-    for (i, seg_name) in enumerate(seg_names):
-        print "%i: %s" % (i, seg_name)
-    choice_ind = task_execution.request_int_in_range(len(seg_names))
-    chosen_seg = seg_names[choice_ind]
-    return chosen_seg
-
-
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
@@ -205,23 +199,36 @@ def get_downsampled_clouds(demofile):
 def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
 
+def find_closest_manual(demofile, _new_xyz):
+    "for now, just prompt the user"
+    seg_names = demofile.keys()
+    print "choose from the following options (type an integer)"
+    for (i, seg_name) in enumerate(seg_names):
+        print "%i: %s" % (i, seg_name)
+    choice_ind = task_execution.request_int_in_range(len(seg_names))
+    chosen_seg = seg_names[choice_ind]
+    return chosen_seg
 
 def find_closest_auto(demofile, new_xyz):
-    if args.parallel:
+    """Return the segment with the lowest warping cost. Takes about 2 seconds."""
+    parallel = True
+    if parallel:
         from joblib import Parallel, delayed
 
-    ignore_inds = get_ignored_inds(demofile)
-    keys = remove_inds(demofile.keys(), ignore_inds)
-    ds_clouds = remove_inds(get_downsampled_clouds(demofile), ignore_inds)
+    keys = demofile.keys()
+    ds_clouds = get_downsampled_clouds(demofile)
     ds_new = clouds.downsample(new_xyz, DS_SIZE)
-    if args.parallel:
-        costs = Parallel(n_jobs=3, verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+    if parallel:
+        before = time.time()
+        costs = Parallel(n_jobs=12, verbose=0)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+        after = time.time()
+        print "Parallel registration time in seconds =", after - before
     else:
         costs = []
         for (i, ds_cloud) in enumerate(ds_clouds):
             costs.append(registration_cost(ds_cloud, ds_new))
             print(("completed %i/%i" % (i + 1, len(ds_clouds))))
-    print(("costs\n", costs))
+    #print(("costs\n", costs))
     ibest = np.argmin(costs)
     return keys[ibest]
 
@@ -245,11 +252,8 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f, old_xyz, new_xyz, last
 
     if Globals.viewer:
         Globals.viewer.Step()
-        Globals.viewer.Idle()
-        if last_one:
-            print "------  Final Warp ----------"
-            time.sleep(5)
-            Globals.viewer.Idle()
+        time.sleep(0.1)
+        #Globals.viewer.Idle()
         
 def load_fake_data_segment(demofile, set_robot_state=True):
     """Do some transform of the pointcloud?"""
@@ -304,7 +308,7 @@ def unif_resample(traj, max_diff, wt=None):
     newt = np.interp(newl, l, np.arange(len(traj)))
     return traj_rs, newt
 
-
+#<diffuseColor>.96 .87 .70</diffuseColor>
 def make_table_xml(translation, extents):
     xml = """
 <Environment>
@@ -363,7 +367,7 @@ def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, 
         results.append(loop_body(new_xyz, demofile, (lambda _,__: segment), knot, animate, curr_step=i))
     return results
 
-def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, knot='K3a1', animate=True, max_steps_before_failure=3):
+def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, knot='K3a1', animate=True, max_steps_before_failure=3, choose_segment=find_closest_manual, filename=None):
     """Manually choose the segment.
      
     Arguments:
@@ -371,13 +375,14 @@ def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius
     
     """
     ### Setup ###
+    setup_log(filename)
     demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
     results = []
     i = 0
     while True:
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        result = loop_body(new_xyz, demofile, find_closest_manual, knot, animate, curr_step=i)
+        result = loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=i)
         results.append(result)
         if result:
             break
@@ -406,12 +411,14 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     #if args.simulation:
     #Set up the simulation with the table (no rope yet)
     new_xyz, _ = load_segment(demofile, init_rope_state_segment)
-    table_height = new_xyz[:, 2].mean() - .02
+    #table_height = new_xyz[:, 2].mean() - .02
+    table_height = new_xyz[:, 2].mean() - 0.17
     table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
-    Globals.env.LoadData(table_xml)
-    Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
     if animate:
         Globals.viewer = trajoptpy.GetViewer(Globals.env)
+    Globals.env.LoadData(table_xml)
+    Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
+
         # create rope with optional pertubations
     #Globals.exec_log(curr_step, "acquire_cloud.orig_cloud", new_xyz)
     move_sim_arms_to_side()
@@ -601,8 +608,10 @@ def main():
     args = prase_arguments()
     if args.random_seed is not None:
         Globals.random_seed = args.random_seed
+    choose_segment = find_closest_manual if args.select_manual else find_closest_auto
     result = do_single_random_task(demofile_name=args.h5file, init_rope_state_segment=args.fake_data_segment, perturb_radius=args.sim_init_perturb_radius, 
-                          perturb_num_points=args.sim_init_perturb_num_points, knot=args.sim_desired_knot_name, animate=args.animation, max_steps_before_failure=args.max_steps_before_failure)
+                          perturb_num_points=args.sim_init_perturb_num_points, knot=args.sim_desired_knot_name, animate=args.animation, 
+                          max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment)
     print "Main results are", result
 
 if __name__ == "__main__":

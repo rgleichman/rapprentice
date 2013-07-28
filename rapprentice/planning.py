@@ -14,6 +14,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     init_traj = old_traj.copy()
     #init_traj[0] = robot.GetDOFValues(arm_inds)
 
+    #When there is a collision cost, sometimes the arm goes through the table
     request = {
         "basic_info" : {
             "n_steps" : n_steps,
@@ -24,10 +25,6 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         {
             "type" : "joint_vel",
             "params": {"coeffs" : [n_steps/5.]}
-        },
-        {
-            "type" : "collision",
-            "params" : {"coeffs" : [1],"dist_pen" : [0.01]}
         }
         ],
         "constraints" : [

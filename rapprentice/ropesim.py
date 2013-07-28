@@ -73,7 +73,7 @@ class Simulation(object):
         #A higher angular damping causes the ropes joints to change angle slower.
         #This can cause the rope to be dragged at an angle by the arm in the air, instead of falling straight.
         #orig self.rope_params.angDamping = 1
-        self.rope_params.angDamping = 0.7
+        self.rope_params.angDamping = .1
         #orig self.rope_params.linDamping = .75
         #Not sure what linear damping is, but it seems to limit the linear accelertion of centers of masses.
         self.rope_params.linDamping = 0

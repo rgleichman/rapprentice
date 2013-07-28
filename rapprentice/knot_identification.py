@@ -135,7 +135,7 @@ def dt_code_to_knot(dt_code):
     q = multiprocessing.Queue(1)
     proc = multiprocessing.Process(target=dt_code_to_knot_wrapper, args=(q, dt_code))
     proc.start()
-    TIMEOUT = 1
+    TIMEOUT = 5
     try:
         result = q.get(True, TIMEOUT)
     except:
