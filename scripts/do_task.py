@@ -31,12 +31,36 @@ import atexit
 import time
 
 #Don't use args, use globals
-args = None
+#args = None
 
+class Globals:
+    robot = None
+    env = None
+    pr2 = None
+    sim = None
+    exec_log = None
+    viewer = None
+    random_seed = None
+
+class RopeState:
+    def __init__(self, segment, perturb_radius, perturb_num_points):
+        self.segment = segment
+        self.perturb_radius = perturb_radius
+        self.perturb_num_points = perturb_num_points
+
+class TaskParameters:
+    def __init__(self, demofile_name,  knot, animate, max_steps_before_failure, choose_segment, log_name):
+        self.demofile_name = demofile_name
+        self.knot = knot
+        self.animate = animate
+        self.max_steps_before_failure = max_steps_before_failure
+        self.choose_segment = choose_segment
+        self.log_name = log_name
+
+#init_rope_state_segment, perturb_radius, perturb_num_points
 def redprint(msg):
     """Print the message to the console in red, bold font."""
     print colorize.colorize(msg, "red", bold=True)
-
 
 def split_trajectory_by_gripper(seg_info):
     """Split up the trajectory into sections with breaks occuring when the grippers open or close.
@@ -338,16 +362,6 @@ def mirror_arm_joints(x):
     return np.r_[-x[0], x[1], -x[2], x[3], -x[4], x[5], -x[6]]
 ###################
 
-
-class Globals:
-    robot = None
-    env = None
-    pr2 = None
-    sim = None
-    exec_log = None
-    viewer = None
-    random_seed = None
-
 def move_sim_arms_to_side():
     """Moves the simulated arms to the side."""
     #SetDOFValues sets the joint angles. DOF = degree of feedom
@@ -367,11 +381,24 @@ def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, 
         results.append(loop_body(new_xyz, demofile, (lambda _,__: segment), knot, animate, curr_step=i))
     return results
 
-def do_single_random_task(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, knot='K3a1', animate=True, max_steps_before_failure=3, choose_segment=find_closest_manual, filename=None):
-    """Manually choose the segment.
-     
+def do_single_task(rope_state, task_params):
+    """Do one task.
+
     Arguments:
-    If max_steps_before failure is -1, then it loops until the knot is detected.
+    rope_state -- a RopeState object
+    task_params -- a task_params object
+    """
+    do_single_random_task(task_
+
+def do_single_random_task(rope_state, task_params):
+    """Manually choose the segment.
+    Do one task.
+
+    Arguments:
+    rope_state -- a RopeState object
+    task_params -- a task_params object
+
+    If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
     
     """
     ### Setup ###
