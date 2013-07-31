@@ -195,26 +195,6 @@ def registration_cost(xyz0, xyz1):
 
 DS_SIZE = .025
 
-
-@func_utils.once
-def get_ignored_inds(demofile):
-    ignore = []
-    for i, k in enumerate(demofile.keys()):
-        if args.no_failure_examples and "failure" in k:
-            ignore.append(i)
-        elif args.only_first_n_examples != -1 and k.startswith("demo"):
-            curr_num = int(k[len("demo"):].split("-")[0])
-            if curr_num > args.only_first_n_examples:
-                ignore.append(i)
-        elif args.only_examples_from_list and k.startswith("demo"):
-            allowed_examples = set(map(int, args.only_examples_from_list.split(',')))
-            curr_num = int(k[len("demo"):].split("-")[0])
-            if curr_num not in allowed_examples:
-                ignore.append(i)
-    print 'Ignoring examples:', [k for (i, k) in enumerate(demofile.keys()) if i in ignore]
-    return np.asarray(ignore)
-
-
 @func_utils.once
 def get_downsampled_clouds(demofile):
     return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
@@ -279,18 +259,6 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f, old_xyz, new_xyz, last
         time.sleep(0.1)
         #Globals.viewer.Idle()
         
-def load_fake_data_segment(demofile, set_robot_state=True):
-    """Do some transform of the pointcloud?"""
-    fake_seg = demofile[args.fake_data_segment]
-    new_xyz = np.squeeze(fake_seg["cloud_xyz"])
-    hmat = openravepy.matrixFromAxisAngle(args.fake_data_transform[3:6])
-    hmat[:3, 3] = args.fake_data_transform[0:3]
-    new_xyz = new_xyz.dot(hmat[:3, :3].T) + hmat[:3, 3][None, :]
-    r2r = ros2rave.RosToRave(Globals.robot, asarray(fake_seg["joint_states"]["name"]))
-    if set_robot_state:
-        r2r.set_values(Globals.robot, asarray(fake_seg["joint_states"]["position"][0]))
-    return new_xyz, r2r
-
 def load_segment(demofile, segment, fake_data_transform=[0, 0, 0, 0, 0, 0]):
     fake_seg = demofile[segment]
     new_xyz = np.squeeze(fake_seg["cloud_xyz"])
@@ -381,15 +349,6 @@ def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, 
         results.append(loop_body(new_xyz, demofile, (lambda _,__: segment), knot, animate, curr_step=i))
     return results
 
-def do_single_task(rope_state, task_params):
-    """Do one task.
-
-    Arguments:
-    rope_state -- a RopeState object
-    task_params -- a task_params object
-    """
-    do_single_random_task(task_
-
 def do_single_random_task(rope_state, task_params):
     """Manually choose the segment.
     Do one task.
@@ -401,6 +360,17 @@ def do_single_random_task(rope_state, task_params):
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
     
     """
+    filename = task_params.log_name
+    demofile_name = task_params.demofile_name
+    init_rope_state_segment = rope_state.segment
+    perturb_radius = rope_state.perturb_radius
+    perturb_num_points = rope_state.perturb_num_points
+    animate = task_params.animate
+    max_steps_before_failure = task_params.max_steps_before_failure
+    choose_segment = task_params.choose_segment
+    knot = task_params.knot
+    
+    
     ### Setup ###
     setup_log(filename)
     demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
@@ -486,8 +456,11 @@ def loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=None):
 
     scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
+    #f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
+    #                              plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
+    #TODO: Fix plotting
     f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
-                                   plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
+                             plotting=0 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01)
     f = registration.unscale_tps(f, src_params, targ_params)
     #Globals.exec_log(curr_step, "gen_traj.f", f)
 
@@ -635,10 +608,12 @@ def main():
     args = prase_arguments()
     if args.random_seed is not None:
         Globals.random_seed = args.random_seed
+        
     choose_segment = find_closest_manual if args.select_manual else find_closest_auto
-    result = do_single_random_task(demofile_name=args.h5file, init_rope_state_segment=args.fake_data_segment, perturb_radius=args.sim_init_perturb_radius, 
-                          perturb_num_points=args.sim_init_perturb_num_points, knot=args.sim_desired_knot_name, animate=args.animation, 
-                          max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment)
+    rope_state = RopeState(args.fake_data_segment, args.sim_init_perturb_radius, args.sim_init_perturb_num_points)
+    params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation, 
+                            max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment, log_name=None)
+    result = do_single_random_task(rope_state, params)
     print "Main results are", result
 
 if __name__ == "__main__":

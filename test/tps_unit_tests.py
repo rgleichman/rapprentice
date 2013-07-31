@@ -22,16 +22,27 @@ def nonrigidity_gradient():
 def jacobian_of_tps():
     import numdifftools as ndt
     D = 3
-    pts0 = np.random.randn(100,3)
+    pts0 = np.random.randn(100,D)
     pts_eval = np.random.randn(20,D)
     lin_ag, trans_g, w_ng, x_na = np.random.randn(D,D), np.random.randn(D), np.random.randn(len(pts0), D), pts0    
     def eval_partial(x_ma_flat):
-        x_ma = x_ma_flat.reshape(-1,3)
+        x_ma = x_ma_flat.reshape(-1,D)
         return tps.tps_eval(x_ma, lin_ag, trans_g, w_ng, pts0)
     for i in xrange(len(pts_eval)):
         rots = ndt.Jacobian(eval_partial)(pts_eval[i])
         rots1 = tps.tps_grad(pts_eval[i:i+1], lin_ag, trans_g, w_ng, pts0)
         assert np.allclose(rots1, rots)
+        
+    D = 2
+    pts0 = np.random.randn(100,D)
+    pts_eval = np.random.randn(20,D)
+    lin_ag, trans_g, w_ng, x_na = np.random.randn(D,D), np.random.randn(D), np.random.randn(len(pts0), D), pts0    
+    for i in xrange(len(pts_eval)):
+        rots = ndt.Jacobian(eval_partial)(pts_eval[i])
+        rots1 = tps.tps_grad(pts_eval[i:i+1], lin_ag, trans_g, w_ng, pts0)
+        assert np.allclose(rots1, rots)
+        
+    
 
 @testing.testme
 def fitting_methods_equivalent():
@@ -58,6 +69,28 @@ def fitting_methods_equivalent():
     assert np.allclose(trans2_g, trans3_g)
     assert np.allclose(w2_ng, w3_ng)
 
+@testing.testme
+def fitting_is_rotationally_invariant():
+    pts0 = np.random.randn(200,3)
+    pts1 = np.random.randn(200,3)
+    
+    bend_coef = 13.
+    rot_coefs = np.ones(3)#np.random.rand(3)
+    wt_n = np.random.rand(200)
+    
+    lin_ag, trans_g, w_ng = tps.tps_fit3(pts0, pts1, bend_coef, rot_coefs, wt_n, rot_target = np.eye(3))    
+    
+    # random rotation matrix
+    A = np.random.randn(3,3)
+    u,s,vh = np.linalg.svd(A.dot(A))
+    R = u.dot(vh)
+    
+    lin1_ag, trans1_g, w1_ng = tps.tps_fit3(pts0, pts1.dot(R), bend_coef, rot_coefs, wt_n, rot_target = R)    
+    
+    assert np.allclose(lin_ag, lin1_ag.dot(R.T))
+    assert np.allclose(trans1_g, trans_g.dot(R))
+    assert np.allclose(w1_ng, w_ng.dot(R))
+    
 
 # @testing.testme
 def check_that_nr_fit_runs():
@@ -78,7 +111,7 @@ def check_that_nr_fit_runs():
     np.seterr(all='ignore')
     np.set_printoptions(suppress=True)
 
-    lin_ag, trans_g, w_eg, x_ea = tps.tps_nr_fit_enhanced(pts0, pts1, 0.01, pts_rigid, 0.001, method="newton",plotting=0)
+    lin_ag, trans_g, w_eg, x_ea = tps.tps_nr_fit_enhanced(pts0, pts1, 0.01, pts_rigid, 0.001, method="newton",plotting=1)
     #lin_ag2, trans_g2, w_ng2 = tps_fit(pts0, pts1, .01, .01)
     #assert np.allclose(w_ng, w_ng2)
     def eval_partial(x_ma):
@@ -168,6 +201,7 @@ if __name__ == "__main__":
     # tps.VERBOSE = True
     tps.ENABLE_SLOW_TESTS=True
     np.seterr(all='ignore')
-    testing.test_all()
+    fitting_is_rotationally_invariant()
+    # testing.test_all()
     # tps_regrot_with_quad_cost()
     # fitting_methods_equivalent()

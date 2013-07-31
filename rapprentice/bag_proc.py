@@ -69,6 +69,11 @@ def joy_to_annotations(stamps, meanings):
     ind_tuples = find_disjoint_subsequences(meanings, ["look","start","stop"])
     for tup in ind_tuples:
         out.append({"look":stamps[tup[0]], "start":stamps[tup[1]], "stop":stamps[tup[2]]})
+    
+    done_inds = [i for (i,meaning) in enumerate(meanings) if meaning=="done"]
+    for ind in done_inds:
+        out.append({"done":None,"look":stamps[ind], "start":stamps[ind], "stop":stamps[ind]+1})
+    
     return out
 
 def add_kinematics_to_group(group, linknames, manipnames, jointnames, robot):
@@ -147,17 +152,35 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         
         add_kinematics_to_group(group, link_names, manip_names, special_joint_names, robot)
 
+def searchsortednearest(a,v):
+    higher_inds = np.fmin(np.searchsorted(a,v), len(a)-1)
+    lower_inds = np.fmax(higher_inds-1, 0)
+    closer_inds = higher_inds
+    lower_is_better = np.abs(a[higher_inds] - v) > np.abs(a[lower_inds] - v)
+    closer_inds[lower_is_better] = lower_inds[lower_is_better]
+    return closer_inds
+
 def get_video_frames(video_dir, frame_stamps):
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
-    frame_inds = np.searchsorted(video_stamps, frame_stamps)
+
+    frame_inds = searchsortednearest(video_stamps, frame_stamps)
+    
+    from glob import glob
+    rgbnames = glob(osp.join(video_dir, "rgb*.jpg"))
+    depthnames = glob(osp.join(video_dir, "depth*.png"))
+        
+    ind2rgbfname = dict([(int(osp.splitext(osp.basename(fname))[0][3:]), fname) for fname in rgbnames])
+    ind2depthfname = dict([(int(osp.splitext(osp.basename(fname))[0][5:]), fname) for fname in depthnames])
+    
+    print ind2depthfname
     
     rgbs = []
     depths = []
     for frame_ind in frame_inds:
-        rgb = cv2.imread(osp.join(video_dir,"rgb%i.jpg"%frame_ind))
+        rgb = cv2.imread(ind2rgbfname[frame_ind])
         assert rgb is not None
         rgbs.append(rgb)
-        depth = cv2.imread(osp.join(video_dir,"depth%i.png"%frame_ind),2)
+        depth = cv2.imread(ind2depthfname[frame_ind],2)
         assert depth is not None
         depths.append(depth)
     return rgbs, depths

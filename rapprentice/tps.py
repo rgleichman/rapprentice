@@ -16,7 +16,7 @@ def nan2zero(x):
     np.putmask(x, np.isnan(x), 0)
     return x
 
-
+KERNEL_SCALING_2D = 4.
 def tps_apply_kernel(distmat, dim):
     """
     if d=2: 
@@ -36,7 +36,7 @@ def tps_apply_kernel(distmat, dim):
     """
 
     if dim==2:       
-        return 4 * distmat**2 * np.log(distmat+1e-20)
+        return KERNEL_SCALING_2D * distmat**2 * np.log(distmat+1e-20)
         
     elif dim ==3:
         return -distmat
@@ -62,15 +62,20 @@ def tps_grad(x_ma, lin_ag, _trans_g, w_ng, x_na):
     _N, D = x_na.shape
     M = x_ma.shape[0]
 
-    assert x_ma.shape[1] == 3
     dist_mn = ssd.cdist(x_ma, x_na,'euclidean')
+    dist_mn = dist_mn + 1e-14
 
     grad_mga = np.empty((M,D,D))
 
     lin_ga = lin_ag.T
     for a in xrange(D):
         diffa_mn = x_ma[:,a][:,None] - x_na[:,a][None,:]
-        grad_mga[:,:,a] = lin_ga[None,:,a] - np.dot(nan2zero(diffa_mn/dist_mn),w_ng)
+        if D == 3:
+            grad_mga[:,:,a] = lin_ga[None,:,a] + -1 * np.dot(diffa_mn/dist_mn,w_ng)
+        elif D == 2:
+            grad_mga[:,:,a] = lin_ga[None,:,a] + KERNEL_SCALING_2D * np.dot(diffa_mn * (1 + 2*np.log(dist_mn)) ,w_ng)
+        else:
+            raise NotImplementedError
     return grad_mga
     
 def tps_nr_grad(x_ma, lin_ag, _trans_g, w_ng, x_na, return_tuple = False):
@@ -226,21 +231,35 @@ def solve_eqp1(H, f, A):
     
     return x
     
-def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
+# @profile    
+def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None, K_nn = None):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
 
-    K_nn = tps_kernel_matrix(x_na)
-    Q = np.c_[np.ones((n,1)), x_na, K_nn]
+
+    if K_nn is None: K_nn = tps_kernel_matrix(x_na)
+    
+    Q = np.empty((n,n+d+1))
+    Q[:,0] = 1
+    Q[:,1:d+1] = x_na
+    Q[:,d+1:n+d+1] = K_nn
+
     WQ = wt_n[:,None] * Q
     QWQ = Q.T.dot(WQ)
     H = QWQ
     H[d+1:,d+1:] += bend_coef * K_nn
+
     rot_coefs = np.ones(d) * rot_coef if np.isscalar(rot_coef) else rot_coef
-    H[1:d+1, 1:d+1] += np.diag(rot_coefs)
+    if rot_target is None: rot_target = np.eye(3)
+
+    D = np.diag(rot_coefs)
+    RD = rot_target.dot(D)
+    sRD = .5*(RD + RD.T)
+
+    H[1:d+1, 1:d+1] += D
     
     f = -WQ.T.dot(y_ng)
-    f[1:d+1,0:d] -= np.diag(rot_coefs)
+    f[1:d+1,0:d] -= RD
     
     A = np.r_[np.zeros((d+1,d+1)), np.c_[np.ones((n,1)), x_na]].T
     
