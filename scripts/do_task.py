@@ -56,6 +56,7 @@ class TaskParameters:
         self.max_steps_before_failure = max_steps_before_failure
         self.choose_segment = choose_segment
         self.log_name = log_name
+        self.random_seed = None
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
 def redprint(msg):
@@ -372,11 +373,14 @@ def do_single_random_task(rope_state, task_params):
     
     
     ### Setup ###
+    setup_random(task_params)
     setup_log(filename)
     demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
     results = []
     i = 0
     while True:
+        print "max_steps_before_failure =", max_steps_before_failure
+        print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
         result = loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=i)
@@ -385,7 +389,12 @@ def do_single_random_task(rope_state, task_params):
             break
         i += 1
     return results
-
+def setup_random(task_params):
+    if task_params.random_seed:
+        Globals.random_seed = task_params.random_seed
+        print "Found a random seed"
+        print "Random seed is", Globals.random_seed
+        
 def setup_log(filename):
     if filename:
         if Globals.exec_log is None:
@@ -460,7 +469,12 @@ def loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=None):
     #                              plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
     #TODO: Fix plotting
     f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
-                             plotting=0 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01)
+                             plotting=0 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, rad_init = .1, rad_final = .01, outliersd = 2, corr_reg=1)
+    
+    #tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .01, rot_reg = 1e-3, 
+    #        plotting = False, plot_cb = None, outliersd = 2., corr_reg=.5, update_rot_target=False):
+    
+    
     f = registration.unscale_tps(f, src_params, targ_params)
     #Globals.exec_log(curr_step, "gen_traj.f", f)
 
