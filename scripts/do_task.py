@@ -41,6 +41,21 @@ class Globals:
     exec_log = None
     viewer = None
     random_seed = None
+    
+class BijArgs:
+    n_iter = 50
+    bend_init = 0.1
+    bend_final = 0.01
+    rad_init = 0.5
+    rad_final = 0.01
+    rot_reg = 1
+    #corr was 1
+    corr_reg = 0.5
+    #out was 2
+    outliersd = 3
+    reg_init = 1
+    reg_final = .01
+    
 
 class RopeState:
     def __init__(self, segment, perturb_radius, perturb_num_points):
@@ -190,7 +205,13 @@ def exec_traj_sim(bodypart2traj, animate):
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
-    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, n_iter=10)
+    #TODO: fix parameters
+    #f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, n_iter=10)
+    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, 
+                                    n_iter=10, reg_init=BijArgs.reg_init, 
+                                    reg_final=BijArgs.reg_final, rad_init = BijArgs.rad_init, 
+                                    rad_final = BijArgs.rad_final, outliersd = BijArgs.outliersd, 
+                                    corr_reg=BijArgs.corr_reg)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
@@ -233,7 +254,7 @@ def find_closest_auto(demofile, new_xyz):
         for (i, ds_cloud) in enumerate(ds_clouds):
             costs.append(registration_cost(ds_cloud, ds_new))
             print(("completed %i/%i" % (i + 1, len(ds_clouds))))
-    #print(("costs\n", costs))
+    print(("costs\n", costs))
     ibest = np.argmin(costs)
     return keys[ibest]
 
@@ -371,7 +392,6 @@ def do_single_random_task(rope_state, task_params):
     choose_segment = task_params.choose_segment
     knot = task_params.knot
     
-    
     ### Setup ###
     setup_random(task_params)
     setup_log(filename)
@@ -412,8 +432,16 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     demofile = h5py.File(demofile_name, 'r')
     Globals.env = openravepy.Environment()
     Globals.env.StopSimulation()
-    Globals.env.Load("robots/pr2-beta-static.zae")
-    Globals.robot = Globals.env.GetRobots()[0]
+    #TODO: fix this
+    try:
+        Globals.env.Load("robots/pr2-beta-static.zae")
+        Globals.robot = Globals.env.GetRobots()[0]
+    except:
+        for i in range(5):
+            time.sleep(5)
+            Globals.env.Load("robots/pr2-beta-static.zae")
+            Globals.robot = Globals.env.GetRobots()[0]
+    
     #if args.simulation:
     #Set up the simulation with the table (no rope yet)
     new_xyz, _ = load_segment(demofile, init_rope_state_segment)
@@ -465,11 +493,14 @@ def loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=None):
 
     scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
-    #f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
+    #f, _ = registration.tps_rpm_(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
     #                              plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
     #TODO: Fix plotting
     f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
-                             plotting=0 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, rad_init = .1, rad_final = .01, outliersd = 2, corr_reg=1)
+                             plotting=0 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=BijArgs.reg_init, 
+                                    reg_final=BijArgs.reg_final, rad_init=BijArgs.rad_init, 
+                                    rad_final=BijArgs.rad_final, outliersd=BijArgs.outliersd, 
+                                    corr_reg=BijArgs.corr_reg)
     
     #tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .01, rot_reg = 1e-3, 
     #        plotting = False, plot_cb = None, outliersd = 2., corr_reg=.5, update_rot_target=False):
