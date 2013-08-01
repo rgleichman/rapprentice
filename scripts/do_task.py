@@ -56,6 +56,7 @@ class TaskParameters:
         self.max_steps_before_failure = max_steps_before_failure
         self.choose_segment = choose_segment
         self.log_name = log_name
+        self.random_seed = None
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
 def redprint(msg):
@@ -371,11 +372,14 @@ def do_single_random_task(rope_state, task_params):
     knot = task_params.knot
     
     ### Setup ###
+    setup_random(task_params)
     setup_log(filename)
     demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
     results = []
     i = 0
     while True:
+        print "max_steps_before_failure =", max_steps_before_failure
+        print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
         result = loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=i)
@@ -384,7 +388,12 @@ def do_single_random_task(rope_state, task_params):
             break
         i += 1
     return results
-
+def setup_random(task_params):
+    if task_params.random_seed:
+        Globals.random_seed = task_params.random_seed
+        print "Found a random seed"
+        print "Random seed is", Globals.random_seed
+        
 def setup_log(filename):
     if filename:
         if Globals.exec_log is None:
