@@ -64,8 +64,8 @@ def do_both(iterations, starting_seed, func1, func2):
 		combined_passes = sum(1 if (f1 or f2) else 0 for f1, f2 in zip(f1_final_results, f2_final_results))
 	
 		print "On iteration (i+1)=", i+1
-		print "Func2_results =", f2_results
 		print "Func1_results =", f1_results
+		print "Func2_results =", f2_results
 		print "f1_passes =", f1_passes
 		print "f2_passes =", f2_passes
 		print "f1_pass_rate =", f1_passes / float(i+1)
@@ -102,7 +102,7 @@ def do_demo1(choose_segment, max_steps=5, random_seed=None):
 	demo1 = "demo1-seg00"
 	demofile = osp.join(DATA_DIR, H5FILE)
 	rope_state = make_basic_rope_state(demo1)
-	task_params = make_basic_task_params(demofile, choose_segment, "/mnt/storage/robbie/logs/test_demo1_both_auto_and_demo1-2.pkl")
+	task_params = make_basic_task_params(demofile, choose_segment, "/mnt/storage/robbie/logs/test_demo1_both_auto_and_demo1-seed841-1.pkl")
 	task_params.random_seed = random_seed
 	task_params.max_steps_before_failure = max_steps
 	return_val = do_task.do_single_random_task(rope_state, task_params)
@@ -120,7 +120,7 @@ def main():
 	#do_segments(animate=False)
 	#do_many_segments(100)
 	#do_many(100, do_auto)
-	do_both(100, 294, execute_demo1_segments, do_auto)
+	do_both(100, 841, execute_demo1_segments, do_auto)
 	
 if __name__ == "__main__":
     main()

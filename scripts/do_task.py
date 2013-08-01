@@ -263,7 +263,7 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f, old_xyz, new_xyz, last
 def load_segment(demofile, segment, fake_data_transform=[0, 0, 0, 0, 0, 0]):
     fake_seg = demofile[segment]
     new_xyz = np.squeeze(fake_seg["cloud_xyz"])
-    hmat = openravepy.matrixFromAxisAngle(fake_data_transform[3:6])
+    hmat = openravepy.matrixFromAxisAngle(fake_data_transform[3:6])  # @UndefinedVariable
     hmat[:3, 3] = fake_data_transform[0:3]
     new_xyz = new_xyz.dot(hmat[:3, :3].T) + hmat[:3, 3][None, :]
     r2r = ros2rave.RosToRave(Globals.robot, asarray(fake_seg["joint_states"]["name"]))
@@ -347,7 +347,7 @@ def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, 
     demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate)
     results = []
     for i, segment in enumerate(segments):
-        results.append(loop_body(new_xyz, demofile, (lambda _,__: segment), knot, animate, curr_step=i))
+        results.append(loop_body(demofile, (lambda _,__: segment), knot, animate, curr_step=i))
     return results
 
 def do_single_random_task(rope_state, task_params):
@@ -382,7 +382,7 @@ def do_single_random_task(rope_state, task_params):
         print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        result = loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=i)
+        result = loop_body(demofile, choose_segment, knot, animate, curr_step=i)
         results.append(result)
         if result:
             break
@@ -409,7 +409,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
         np.random.seed(Globals.random_seed)
         
     demofile = h5py.File(demofile_name, 'r')
-    Globals.env = openravepy.Environment()
+    Globals.env = openravepy.Environment()  # @UndefinedVariable
     Globals.env.StopSimulation()
     Globals.env.Load("robots/pr2-beta-static.zae")
     Globals.robot = Globals.env.GetRobots()[0]
@@ -435,7 +435,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.sim.create(rope_nodes)
     return demofile, new_xyz
 
-def loop_body(new_xyz, demofile, choose_segment, knot, animate, curr_step=None):
+def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     """Do the body of the main task execution loop (ie. do a segment). 
     Arguments:
         curr_step is 0 indexed
