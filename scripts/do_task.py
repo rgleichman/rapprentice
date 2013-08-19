@@ -339,18 +339,6 @@ def move_sim_arms_to_side():
     Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
     Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
-def do_several_segments(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, segments, knot='K3a1', animate=True, filename=None):
-    """Execute on a random rope state several segments.
-    Arguments:
-        segments -- A list of the demonstration segments to execute.
-    """
-    setup_log(filename)
-    demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate)
-    results = []
-    for i, segment in enumerate(segments):
-        results.append(loop_body(demofile, (lambda _,__: segment), knot, animate, curr_step=i))
-    return results
-
 def do_single_random_task(rope_state, task_params):
     """Manually choose the segment.
     Do one task.
