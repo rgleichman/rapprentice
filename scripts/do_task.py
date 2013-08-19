@@ -331,6 +331,7 @@ def mirror_arm_joints(x):
     return np.r_[-x[0], x[1], -x[2], x[3], -x[4], x[5], -x[6]]
 ###################
 
+#TODO: Change for no body
 def move_sim_arms_to_side():
     """Moves the simulated arms to the side."""
     #SetDOFValues sets the joint angles. DOF = degree of feedom
@@ -441,6 +442,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         curr_step is 0 indexed
         choose_segment is a function that returns the key in the demofile to the segment
         knot is the knot the rope is checked against
+        new_xyz is the new pointcloud
     """
     #TODO -- End condition
     #TODO -- max_segments logic
@@ -472,12 +474,19 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1], old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
 
     link2eetraj = {}
+    #link2eetraj is a hash of gripper fram to new trajectory
+
+    #Transform the gripper trajectory here
     for lr in 'lr':
         link_name = "%s_gripper_tool_frame" % lr
+        #old_ee_traj is the old gripper trajectory
         old_ee_traj = asarray(seg_info[link_name]["hmat"])
+        #new_ee_traj is the transformed gripper trajectory
         new_ee_traj = f.transform_hmats(old_ee_traj)
+        #What is link2eetraj?
         link2eetraj[link_name] = new_ee_traj
 
+        #Draw the old and new gripper trajectories as lines
         handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
         handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
     #Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
@@ -485,9 +494,9 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
     success = True
     #print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
+
+    #TODO: modify for no body
     for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
-
-
         ################################
         redprint("Generating joint trajectory for segment %s, part %i" % (segment, i_miniseg))
 
@@ -495,6 +504,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         lr2oldtraj = {}
         for lr in 'lr':
             manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
+            #old_joint_traj is the old trajectory inside the minisegment
             old_joint_traj = asarray(seg_info[manip_name][i_start: i_end + 1])
             #print (old_joint_traj[1:] - old_joint_traj[:-1]).ptp(axis=0), i_start, i_end
             if arm_moved(old_joint_traj):
