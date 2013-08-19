@@ -363,7 +363,7 @@ def do_single_random_task(rope_state, task_params):
     ### Setup ###
     setup_random(task_params)
     setup_log(filename)
-    demofile, new_xyz = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
+    demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
     results = []
     i = 0
     while True:
@@ -422,7 +422,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
         num_perturb_points=perturb_num_points)
     #Globals.exec_log(curr_step, "acquire_cloud.init_sim_rope_nodes", rope_nodes)
     Globals.sim.create(rope_nodes)
-    return demofile, new_xyz
+    return demofile
 
 def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     """Do the body of the main task execution loop (ie. do a segment). 
