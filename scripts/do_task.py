@@ -154,6 +154,7 @@ def unwrap_in_place(t):
     else:
         raise NotImplementedError
 
+#TODO: modify for no body
 def exec_traj_sim(bodypart2traj, animate):
     def sim_callback(i):
         Globals.sim.step()
@@ -340,8 +341,7 @@ def move_sim_arms_to_side():
     Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
 def do_single_random_task(rope_state, task_params):
-    """Manually choose the segment.
-    Do one task.
+    """Do one task.
 
     Arguments:
     rope_state -- a RopeState object
@@ -350,6 +350,7 @@ def do_single_random_task(rope_state, task_params):
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
     
     """
+    #Begin: setup local variables from parameters
     filename = task_params.log_name
     demofile_name = task_params.demofile_name
     init_rope_state_segment = rope_state.segment
@@ -359,9 +360,10 @@ def do_single_random_task(rope_state, task_params):
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = task_params.choose_segment
     knot = task_params.knot
+    #End
     
     ### Setup ###
-    setup_random(task_params)
+    set_random_seed(task_params)
     setup_log(filename)
     demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
     results = []
@@ -377,7 +379,8 @@ def do_single_random_task(rope_state, task_params):
             break
         i += 1
     return results
-def setup_random(task_params):
+
+def set_random_seed(task_params):
     if task_params.random_seed:
         Globals.random_seed = task_params.random_seed
         print "Found a random seed"
@@ -393,7 +396,7 @@ def setup_log(filename):
     
 #TODO  Consider encapsulating these intermedite return values in a class.
 def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate):
-    """For the simulation, this code runs before the main loop. Also sets the random seed"""
+    """For the simulation, this code runs before the main loop. It also sets the numpy random seed"""
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
         
@@ -516,6 +519,8 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
             #if args.execution:
             #    Globals.pr2.update_rave()
             #Call the planner (eg. trajopt)
+            
+            #TODO: unnecessary now
             new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
             Globals.robot.GetLink(ee_link_name), new_ee_traj_rs, old_joint_traj_rs)
             part_name = {"l": "larm", "r": "rarm"}[lr]
