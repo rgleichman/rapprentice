@@ -572,15 +572,8 @@ def prase_arguments():
     import argparse
     usage = """
 
-Run in simulation with a translation and a rotation of fake data:
-./do_task.py ~/Data/sampledata/overhand/overhand.h5 --fake_data_segment=overhand0_seg00 --execution=0  --animation=1 --select_manual --fake_data_transform .1 .1 .1 .1 .1 .1
-
-Run in simulation choosing the closest demo, single threaded
-./do_task.py ~/Data/all.h5 --fake_data_segment=demo1-seg00 --execution=0  --animation=1  --parallel=0
-
-Actually run on the robot without pausing or animating
-./do_task.py ~/Data/overhand2/all.h5 --execution=1 --animation=0
-
+Run:
+python scripts/do_task.py /home/henrylu/Data/overhand/all.h5 --fake_data_segment=demo1-seg00 --simulation=1 --execution=0 --sim_init_perturb_radius=0.05 --sim_init_perturb_num_points=7 --sim_desired_knot_name="K3a1" --random_seed=100 --animation=1
 """
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("h5file", type=str)
