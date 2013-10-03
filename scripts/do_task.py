@@ -29,6 +29,7 @@ import h5py
 from numpy import asarray
 import atexit
 import time
+import sys
 
 #Don't use args, use globals
 #args = None
@@ -95,7 +96,7 @@ def binarize_gripper(angle):
     return angle > thresh
 
 def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
-    """Opens or closes the gripper. Also steps the simulation?
+    """Opens or closes the gripper. Also steps the simulation.
 
     Arguments:
         is_open -- boolean that is true if the gripper should be open
@@ -110,7 +111,6 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
 
     target_val = open_angle if is_open else closed_angle
 
-    #elif args.simulation:
     # release constraints if necessary
     if is_open and not prev_is_open:
         Globals.sim.release_rope(lr)
@@ -130,7 +130,7 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
         if animate:
             Globals.viewer.Step()
     # add constraints if necessary
-    #TODO find out what grab_rope does. Add the return value to doctstring
+
     if not is_open and prev_is_open:
         if not Globals.sim.grab_rope(lr):
             return False
@@ -154,11 +154,10 @@ def unwrap_in_place(t):
     else:
         raise NotImplementedError
 
-#TODO: modify for no body
 def exec_traj_sim(bodypart2traj, animate):
     def sim_callback(i):
         Globals.sim.step()
-    #if args.animation or args.simulation:
+
     dof_inds = []
     trajs = []
     for (part_name, traj) in bodypart2traj.items():
@@ -168,7 +167,6 @@ def exec_traj_sim(bodypart2traj, animate):
     full_traj = np.concatenate(trajs, axis=1)
     Globals.robot.SetActiveDOFs(dof_inds)
 
-    #if args.simulation:
     # make the trajectory slow enough for the simulation
     #orig full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj)
     full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj, max_cart_vel=.01)
@@ -405,7 +403,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.env.StopSimulation()
     Globals.env.Load("robots/pr2-beta-static.zae")
     Globals.robot = Globals.env.GetRobots()[0]
-    #if args.simulation:
+
     #Set up the simulation with the table (no rope yet)
     new_xyz, _ = load_segment(demofile, init_rope_state_segment)
     #table_height = new_xyz[:, 2].mean() - .02
@@ -417,13 +415,13 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
 
         # create rope with optional pertubations
-    #Globals.exec_log(curr_step, "acquire_cloud.orig_cloud", new_xyz)
+
     move_sim_arms_to_side()
     rope_nodes = rope_initialization.find_path_through_point_cloud(
         new_xyz,
         perturb_peak_dist=perturb_radius,
         num_perturb_points=perturb_num_points)
-    #Globals.exec_log(curr_step, "acquire_cloud.init_sim_rope_nodes", rope_nodes)
+
     Globals.sim.create(rope_nodes)
     return demofile
 
@@ -438,7 +436,6 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     #TODO -- End condition
     #TODO -- max_segments logic
     redprint("Acquire point cloud")
-    #if args.simulation:
     
     move_sim_arms_to_side()
     #TODO -- Possibly refactor this section to be before the loop.
@@ -474,7 +471,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         old_ee_traj = asarray(seg_info[link_name]["hmat"])
         #new_ee_traj is the transformed gripper trajectory
         new_ee_traj = f.transform_hmats(old_ee_traj)
-        #What is link2eetraj?
+
         link2eetraj[link_name] = new_ee_traj
 
         #Draw the old and new gripper trajectories as lines
@@ -516,11 +513,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
             ee_link_name = "%s_gripper_tool_frame" % lr
             new_ee_traj = link2eetraj[ee_link_name][i_start: i_end + 1]
             new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
-            #if args.execution:
-            #    Globals.pr2.update_rave()
             #Call the planner (eg. trajopt)
-            
-            #TODO: unnecessary now
             new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
             Globals.robot.GetLink(ee_link_name), new_ee_traj_rs, old_joint_traj_rs)
             part_name = {"l": "larm", "r": "rarm"}[lr]
@@ -540,18 +533,16 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         # Execute the robot trajectory
         if len(bodypart2traj) > 0:
             success &= exec_traj_sim(bodypart2traj, animate)
-        #if args.simulation:
-            #Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_traj" % i_miniseg, Globals.sim.rope.GetNodes())
+
+        #Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_traj" % i_miniseg, Globals.sim.rope.GetNodes())
 
         if not success:
             break
 
-    #if args.simulation:
     Globals.sim.settle(animate=animate)
     if Globals.exec_log:
         Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
 
-    #if args.sim_desired_knot_name is not None:
     from rapprentice import knot_identification
     knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
     if knot_name is not None:
@@ -571,17 +562,15 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
 def prase_arguments():
     import argparse
     usage = """
-
-Run:
-python scripts/do_task.py /home/henrylu/Data/overhand/all.h5 --fake_data_segment=demo1-seg00 --simulation=1 --execution=0 --sim_init_perturb_radius=0.05 --sim_init_perturb_num_points=7 --sim_desired_knot_name="K3a1" --random_seed=100 --animation=1
-"""
+    Run {0} --help for a list of arguments
+    See https://docs.google.com/document/d/17HmaCcXd5q9QST8P2rJMzuGCd3P0Rb1UdlNZATVWQz4/pub
+    """.format(sys.argv[0])
+    
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("h5file", type=str)
     parser.add_argument("--cloud_proc_func", default="extract_red")
     parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
-    parser.add_argument("--execution", type=int, default=0)
     parser.add_argument("--animation", type=int, default=0)
-    parser.add_argument("--simulation", type=int, default=0)
     parser.add_argument("--parallel", type=int, default=1)
     parser.add_argument("--prompt", action="store_true")
     parser.add_argument("--select_manual", action="store_true")
@@ -599,10 +588,8 @@ python scripts/do_task.py /home/henrylu/Data/overhand/all.h5 --fake_data_segment
     parser.add_argument("--log", type=str, default="", help="")
     args = parser.parse_args()
     print "args =", args
-    if args.fake_data_segment is None:
-        assert args.execution == 1
-    if args.simulation:
-        assert args.execution == 0 and args.fake_data_segment is not None
+
+    assert args.fake_data_segment is not None
     return args
 
 def main():
