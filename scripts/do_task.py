@@ -568,16 +568,26 @@ def prase_arguments():
     
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("h5file", type=str, help="The HDF5 file that contains the recorded demonstration segments.")
-    parser.add_argument("--animation", action="store_true")
-    parser.add_argument("--select_manual", action="store_true")
-    parser.add_argument("--fake_data_segment", type=str)
+
+    parser.add_argument("fake_data_segment", type=str, help="This is the name of the segment that will be used to initialize the rope state.")
+
+    parser.add_argument("--animation", action="store_true", help="Vizualize the robot and the simulation.")
+
+    parser.add_argument("--select_manual", action="store_true", help="Select the segments manually. If absent, then the segment will be automatically chosen.")
+
     parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"), default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
-    parser.add_argument("--sim_init_perturb_radius", type=float, default=None)
-    parser.add_argument("--sim_init_perturb_num_points", type=int, default=7)
-    parser.add_argument("--sim_desired_knot_name", type=str, default=None)
-    parser.add_argument("--max_steps_before_failure", type=int, default=-1)
-    parser.add_argument("--random_seed", type=int, default=None)
-    parser.add_argument("--log", type=str, default="", help="")
+
+    parser.add_argument("--sim_init_perturb_radius", type=float, default=None, help="How far to perturb the initial rope state. 0 in none, 0.1 is far.")
+
+    parser.add_argument("--sim_init_perturb_num_points", type=int, default=7, help="Perturb the rope state specified by fake_data_segment at this many points a distance of sim_init_perturb_radius.")
+
+    parser.add_argument("--sim_desired_knot_name", type=str, default=None, help="Which knot the robot should tie. \"K3a1\" is an overhand knot.")
+
+    parser.add_argument("--max_steps_before_failure", type=int, default=-1, help="When not selecting manually (ie. automatic selection) it will declare failure after this many steps if the knot has not been detected.")
+
+    parser.add_argument("--random_seed", type=int, default=None, help="The random seed for the rope perturber. Using the same random seed (and keeping all of the other arguments the same too) allows initial perturbed rope states to be duplicated.")
+
+    parser.add_argument("--log", type=str, default=None, help="Filename for the log file.")
     args = parser.parse_args()
     print "args =", args
 
@@ -591,9 +601,10 @@ def main():
     choose_segment = find_closest_manual if args.select_manual else find_closest_auto
     rope_state = RopeState(args.fake_data_segment, args.sim_init_perturb_radius, args.sim_init_perturb_num_points)
     params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation, 
-                            max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment, log_name=None)
+                            max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment, log_name=args.log)
     result = do_single_random_task(rope_state, params)
     print "Main results are", result
 
 if __name__ == "__main__":
     main()
+
