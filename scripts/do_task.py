@@ -567,8 +567,8 @@ def prase_arguments():
     """.format(sys.argv[0])
     
     parser = argparse.ArgumentParser(usage=usage)
-    parser.add_argument("h5file", type=str)
-    parser.add_argument("--animation", type=int, default=0)
+    parser.add_argument("h5file", type=str, help="The HDF5 file that contains the recorded demonstration segments.")
+    parser.add_argument("--animation", action="store_true")
     parser.add_argument("--select_manual", action="store_true")
     parser.add_argument("--fake_data_segment", type=str)
     parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"), default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
