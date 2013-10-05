@@ -206,10 +206,14 @@ def remove_inds(a, inds):
 def find_closest_manual(demofile, _new_xyz):
     "for now, just prompt the user"
     seg_names = demofile.keys()
-    print "choose from the following options (type an integer)"
+    print_string = "choose from the following options (type an integer). Enter a negative number to exit."
+    print print_string
     for (i, seg_name) in enumerate(seg_names):
         print "%i: %s" % (i, seg_name)
+    print print_string
     choice_ind = task_execution.request_int_in_range(len(seg_names))
+    if choice_ind < 0:
+        return None
     chosen_seg = seg_names[choice_ind]
     return chosen_seg
 
@@ -373,7 +377,8 @@ def do_single_random_task(rope_state, task_params):
             break
         result = loop_body(demofile, choose_segment, knot, animate, curr_step=i)
         results.append(result)
-        if result:
+        #Break if it either sucessfully ties a knot (result is True), or the main loop wants to exit (result is None)
+        if result or result is None:
             break
         i += 1
     return results
@@ -442,6 +447,8 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
 
     new_xyz = Globals.sim.observe_cloud()
     segment = choose_segment(demofile, new_xyz)
+    if segment is None:
+        return None
     seg_info = demofile[segment]
     
     handles = []
