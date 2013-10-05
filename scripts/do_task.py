@@ -568,11 +568,7 @@ def prase_arguments():
     
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("h5file", type=str)
-    parser.add_argument("--cloud_proc_func", default="extract_red")
-    parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
     parser.add_argument("--animation", type=int, default=0)
-    parser.add_argument("--parallel", type=int, default=1)
-    parser.add_argument("--prompt", action="store_true")
     parser.add_argument("--select_manual", action="store_true")
     parser.add_argument("--fake_data_segment", type=str)
     parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"), default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
@@ -581,10 +577,6 @@ def prase_arguments():
     parser.add_argument("--sim_desired_knot_name", type=str, default=None)
     parser.add_argument("--max_steps_before_failure", type=int, default=-1)
     parser.add_argument("--random_seed", type=int, default=None)
-    parser.add_argument("--no_failure_examples", type=int, default=0)
-    parser.add_argument("--only_first_n_examples", type=int, default=-1)
-    parser.add_argument("--only_examples_from_list", type=str)
-    parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--log", type=str, default="", help="")
     args = parser.parse_args()
     print "args =", args
