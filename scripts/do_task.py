@@ -9,7 +9,8 @@ Workflow:
     This is just so we know the robot won't do something stupid that we didn't catch with openrave only mode.
 3. Real data + Gazebo
     --execution=1
-    The problem is that the gazebo robot is in a different state from the real robot, in particular, the head tilt angle. TODO: write a script that       sets gazebo head to real robot head
+    The problem is that the gazebo robot is in a different state from the real robot, in particular, the head tilt
+    angle. TODO: write a script that       sets gazebo head to real robot head
 4. Real data + Real execution.
     --execution=1
 
@@ -18,8 +19,8 @@ If you're using fake data, don't update it.
 
 """
 from rapprentice import registration, colorize, \
-     animate_traj, ros2rave, plotting_openrave, task_execution, \
-     planning, func_utils, resampling, ropesim, rope_initialization, clouds
+    animate_traj, ros2rave, plotting_openrave, task_execution, \
+    planning, func_utils, resampling, ropesim, rope_initialization, clouds
 from rapprentice import math_utils as mu
 
 import trajoptpy
@@ -43,14 +44,16 @@ class Globals:
     viewer = None
     random_seed = None
 
+
 class RopeState:
     def __init__(self, segment, perturb_radius, perturb_num_points):
         self.segment = segment
         self.perturb_radius = perturb_radius
         self.perturb_num_points = perturb_num_points
 
+
 class TaskParameters:
-    def __init__(self, demofile_name,  knot, animate, max_steps_before_failure, choose_segment, log_name):
+    def __init__(self, demofile_name, knot, animate, max_steps_before_failure, choose_segment, log_name):
         self.demofile_name = demofile_name
         self.knot = knot
         self.animate = animate
@@ -63,6 +66,7 @@ class TaskParameters:
 def redprint(msg):
     """Print the message to the console in red, bold font."""
     print colorize.colorize(msg, "red", bold=True)
+
 
 def split_trajectory_by_gripper(seg_info):
     """Split up the trajectory into sections with breaks occuring when the grippers open or close.
@@ -94,6 +98,7 @@ def split_trajectory_by_gripper(seg_info):
 def binarize_gripper(angle):
     thresh = .04
     return angle > thresh
+
 
 def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
     """Opens or closes the gripper. Also steps the simulation.
@@ -129,7 +134,7 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
         Globals.sim.step()
         if animate:
             Globals.viewer.Step()
-    # add constraints if necessary
+            # add constraints if necessary
 
     if not is_open and prev_is_open:
         if not Globals.sim.grab_rope(lr):
@@ -153,6 +158,7 @@ def unwrap_in_place(t):
         unwrap_arm_traj_in_place(t[:, 7:])
     else:
         raise NotImplementedError
+
 
 def exec_traj_sim(bodypart2traj, animate):
     def sim_callback(i):
@@ -178,13 +184,14 @@ def exec_traj_sim(bodypart2traj, animate):
     transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
     #transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.005)
     animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=False,
-        callback=sim_callback, step_viewer=animate)
+                              callback=sim_callback, step_viewer=animate)
     full_traj[0] = transition_traj[-1]
     unwrap_in_place(full_traj)
 
     animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=False,
-        callback=sim_callback, step_viewer=animate)
+                              callback=sim_callback, step_viewer=animate)
     return True
+
 
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
@@ -193,7 +200,9 @@ def registration_cost(xyz0, xyz1):
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
+
 DS_SIZE = .025
+
 
 @func_utils.once
 def get_downsampled_clouds(demofile):
@@ -203,8 +212,9 @@ def get_downsampled_clouds(demofile):
 def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
 
+
 def find_closest_manual(demofile, _new_xyz):
-    "for now, just prompt the user"
+    """for now, just prompt the user"""
     seg_names = demofile.keys()
     print_string = "choose from the following options (type an integer). Enter a negative number to exit."
     print print_string
@@ -216,6 +226,7 @@ def find_closest_manual(demofile, _new_xyz):
         return None
     chosen_seg = seg_names[choice_ind]
     return chosen_seg
+
 
 def find_closest_auto(demofile, new_xyz):
     """Return the segment with the lowest warping cost. Takes about 2 seconds."""
@@ -236,7 +247,7 @@ def find_closest_auto(demofile, new_xyz):
         for (i, ds_cloud) in enumerate(ds_clouds):
             costs.append(registration_cost(ds_cloud, ds_new))
             print(("completed %i/%i" % (i + 1, len(ds_clouds))))
-    #print(("costs\n", costs))
+            #print(("costs\n", costs))
     ibest = np.argmin(costs)
     return keys[ibest]
 
@@ -256,13 +267,15 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f, old_xyz, new_xyz, last
     #handles.append(Globals.env.plot3(ypred_nd, 3, (0, 1, 0, 1)))
     ypred_nd = f.transform_points(old_xyz)
     handles.append(Globals.env.plot3(ypred_nd, 3, (0, 1, 0, 1)))
-    handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1], old_xyz.max(axis=0)+ np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
+    handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
+                                               old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
 
     if Globals.viewer:
         Globals.viewer.Step()
         time.sleep(0.1)
         #Globals.viewer.Idle()
-        
+
+
 def load_segment(demofile, segment, fake_data_transform=[0, 0, 0, 0, 0, 0]):
     fake_seg = demofile[segment]
     new_xyz = np.squeeze(fake_seg["cloud_xyz"])
@@ -272,11 +285,13 @@ def load_segment(demofile, segment, fake_data_transform=[0, 0, 0, 0, 0, 0]):
     r2r = ros2rave.RosToRave(Globals.robot, asarray(fake_seg["joint_states"]["name"]))
     return new_xyz, r2r
 
+
 def unif_resample(traj, max_diff, wt=None):
     """
     Resample a trajectory so steps have same length in joint space
     """
     import scipy.interpolate as si
+
     tol = .005
     if wt is not None:
         wt = np.atleast_2d(wt)
@@ -321,6 +336,7 @@ def make_table_xml(translation, extents):
 """ % (translation[0], translation[1], translation[2], extents[0], extents[1], extents[2])
     return xml
 
+
 PR2_L_POSTURES = dict(
     untucked=[0.4, 1.0, 0.0, -2.05, 0.0, -0.1, 0.0],
     tucked=[0.06, 1.25, 1.79, -1.68, -1.73, -0.10, -0.09],
@@ -332,6 +348,7 @@ PR2_L_POSTURES = dict(
 def mirror_arm_joints(x):
     "mirror image of joints (r->l or l->r)"
     return np.r_[-x[0], x[1], -x[2], x[3], -x[4], x[5], -x[6]]
+
 ###################
 
 #TODO: Change for no body
@@ -340,7 +357,9 @@ def move_sim_arms_to_side():
     #SetDOFValues sets the joint angles. DOF = degree of feedom
     #Move the arms back ("side" posture)
     Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
-    Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]), Globals.robot.GetManipulator("rightarm").GetArmIndices())
+    Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]),
+                               Globals.robot.GetManipulator("rightarm").GetArmIndices())
+
 
 def do_single_random_task(rope_state, task_params):
     """Do one task.
@@ -363,11 +382,12 @@ def do_single_random_task(rope_state, task_params):
     choose_segment = task_params.choose_segment
     knot = task_params.knot
     #End
-    
+
     ### Setup ###
     set_random_seed(task_params)
     setup_log(filename)
-    demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate=animate)
+    demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points,
+                                         animate=animate)
     results = []
     i = 0
     while True:
@@ -383,12 +403,14 @@ def do_single_random_task(rope_state, task_params):
         i += 1
     return results
 
+
 def set_random_seed(task_params):
     if task_params.random_seed:
         Globals.random_seed = task_params.random_seed
         print "Found a random seed"
         print "Random seed is", Globals.random_seed
-        
+
+
 def setup_log(filename):
     if filename:
         if Globals.exec_log is None:
@@ -396,13 +418,13 @@ def setup_log(filename):
             Globals.exec_log = task_execution.ExecutionLog(filename)
             #This will flush to the log when the program closes.
             atexit.register(Globals.exec_log.close)
-    
+
 #TODO  Consider encapsulating these intermedite return values in a class.
 def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate):
     """For the simulation, this code runs before the main loop. It also sets the numpy random seed"""
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
-        
+
     demofile = h5py.File(demofile_name, 'r')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     Globals.env.StopSimulation()
@@ -419,7 +441,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.env.LoadData(table_xml)
     Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
 
-        # create rope with optional pertubations
+    # create rope with optional pertubations
 
     move_sim_arms_to_side()
     rope_nodes = rope_initialization.find_path_through_point_cloud(
@@ -430,6 +452,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.sim.create(rope_nodes)
     return demofile
 
+
 def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     """Do the body of the main task execution loop (ie. do a segment). 
     Arguments:
@@ -438,10 +461,11 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         knot is the knot the rope is checked against
         new_xyz is the new pointcloud
     """
+    #TODO -- Return the new trajectory and state info to be used for bootstrapping
     #TODO -- End condition
     #TODO -- max_segments logic
     redprint("Acquire point cloud")
-    
+
     move_sim_arms_to_side()
     #TODO -- Possibly refactor this section to be before the loop.
 
@@ -450,7 +474,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     if segment is None:
         return None
     seg_info = demofile[segment]
-    
+
     handles = []
     old_xyz = np.squeeze(seg_info["cloud_xyz"])
     handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
@@ -462,11 +486,13 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
     f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
-                                   plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50, reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
+                                    plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
+                                    reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
     f = registration.unscale_tps(f, src_params, targ_params)
     #Globals.exec_log(curr_step, "gen_traj.f", f)
 
-    handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1], old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
+    handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
+                                               old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
 
     link2eetraj = {}
     #link2eetraj is a hash of gripper fram to new trajectory
@@ -484,7 +510,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         #Draw the old and new gripper trajectories as lines
         handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
         handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
-    #Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
+        #Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
 
     miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
     success = True
@@ -508,7 +534,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
             old_total_traj = np.concatenate(lr2oldtraj.values(), 1)
             JOINT_LENGTH_PER_STEP = .1
             _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
-        ####
+            ####
 
         ### Generate fullbody traj
         bodypart2traj = {}
@@ -522,22 +548,25 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
             new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
             #Call the planner (eg. trajopt)
             new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
-            Globals.robot.GetLink(ee_link_name), new_ee_traj_rs, old_joint_traj_rs)
+                                                       Globals.robot.GetLink(ee_link_name), new_ee_traj_rs,
+                                                       old_joint_traj_rs)
             part_name = {"l": "larm", "r": "rarm"}[lr]
             bodypart2traj[part_name] = new_joint_traj
 
         ### Execute the gripper ###
-        redprint("Executing joint trajectory for segment %s, part %i using arms '%s'" % (segment, i_miniseg, bodypart2traj.keys()))
+        redprint("Executing joint trajectory for segment %s, part %i using arms '%s'" % (
+            segment, i_miniseg, bodypart2traj.keys()))
 
         for lr in 'lr':
             gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start])
-            prev_gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start - 1]) if i_start != 0 else False
+            prev_gripper_open = binarize_gripper(
+                seg_info["%s_gripper_joint" % lr][i_start - 1]) if i_start != 0 else False
             if not set_gripper_sim(lr, gripper_open, prev_gripper_open, animate):
                 redprint("Grab %s failed" % lr)
                 success = False
         if not success:
             break
-        # Execute the robot trajectory
+            # Execute the robot trajectory
         if len(bodypart2traj) > 0:
             success &= exec_traj_sim(bodypart2traj, animate)
 
@@ -551,6 +580,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
 
     from rapprentice import knot_identification
+
     knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
     if knot_name is not None:
         if knot_name == knot or knot == "any":
@@ -568,31 +598,40 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
 
 def prase_arguments():
     import argparse
+
     usage = """
     Run {0} --help for a list of arguments
     See https://docs.google.com/document/d/17HmaCcXd5q9QST8P2rJMzuGCd3P0Rb1UdlNZATVWQz4/pub
     """.format(sys.argv[0])
-    
+
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("h5file", type=str, help="The HDF5 file that contains the recorded demonstration segments.")
 
-    parser.add_argument("fake_data_segment", type=str, help="This is the name of the segment that will be used to initialize the rope state.")
+    parser.add_argument("fake_data_segment", type=str,
+                        help="This is the name of the segment that will be used to initialize the rope state.")
 
     parser.add_argument("--animation", action="store_true", help="Vizualize the robot and the simulation.")
 
-    parser.add_argument("--select_manual", action="store_true", help="Select the segments manually. If absent, then the segment will be automatically chosen.")
+    parser.add_argument("--select_manual", action="store_true",
+                        help="Select the segments manually. If absent, then the segment will be automatically chosen.")
 
-    parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"), default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
+    parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx", "ty", "tz", "rx", "ry", "rz"),
+                        default=[0, 0, 0, 0, 0, 0], help="translation=(tx, ty, tz), axis-angle rotation=(rx, ry, rz)")
 
-    parser.add_argument("--sim_init_perturb_radius", type=float, default=None, help="How far to perturb the initial rope state. 0 in none, 0.1 is far.")
+    parser.add_argument("--sim_init_perturb_radius", type=float, default=None,
+                        help="How far to perturb the initial rope state. 0 in none, 0.1 is far.")
 
-    parser.add_argument("--sim_init_perturb_num_points", type=int, default=7, help="Perturb the rope state specified by fake_data_segment at this many points a distance of sim_init_perturb_radius.")
+    parser.add_argument("--sim_init_perturb_num_points", type=int, default=7,
+                        help="Perturb the rope state specified by fake_data_segment at this many points a distance of sim_init_perturb_radius.")
 
-    parser.add_argument("--sim_desired_knot_name", type=str, default=None, help="Which knot the robot should tie. \"K3a1\" is an overhand knot.")
+    parser.add_argument("--sim_desired_knot_name", type=str, default=None,
+                        help="Which knot the robot should tie. \"K3a1\" is an overhand knot.")
 
-    parser.add_argument("--max_steps_before_failure", type=int, default=-1, help="When not selecting manually (ie. automatic selection) it will declare failure after this many steps if the knot has not been detected.")
+    parser.add_argument("--max_steps_before_failure", type=int, default=-1,
+                        help="When not selecting manually (ie. automatic selection) it will declare failure after this many steps if the knot has not been detected.")
 
-    parser.add_argument("--random_seed", type=int, default=None, help="The random seed for the rope perturber. Using the same random seed (and keeping all of the other arguments the same too) allows initial perturbed rope states to be duplicated.")
+    parser.add_argument("--random_seed", type=int, default=None,
+                        help="The random seed for the rope perturber. Using the same random seed (and keeping all of the other arguments the same too) allows initial perturbed rope states to be duplicated.")
 
     parser.add_argument("--log", type=str, default=None, help="Filename for the log file.")
     args = parser.parse_args()
@@ -601,16 +640,19 @@ def prase_arguments():
     assert args.fake_data_segment is not None
     return args
 
+
 def main():
     args = prase_arguments()
     if args.random_seed is not None:
         Globals.random_seed = args.random_seed
     choose_segment = find_closest_manual if args.select_manual else find_closest_auto
     rope_state = RopeState(args.fake_data_segment, args.sim_init_perturb_radius, args.sim_init_perturb_num_points)
-    params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation, 
-                            max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment, log_name=args.log)
+    params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation,
+                            max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment,
+                            log_name=args.log)
     result = do_single_random_task(rope_state, params)
     print "Main results are", result
+
 
 if __name__ == "__main__":
     main()
