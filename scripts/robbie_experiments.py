@@ -8,8 +8,8 @@ import do_task
 import time
 
 SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
-DATA_DIR = "/home/henrylu/Data/overhand"
-H5FILE = "master.h5"
+DATA_DIR = "/mnt/storage/robbie/hdf5_working"
+H5FILE = "all_exp_1.h5"
 
 def do_stuff():
 	demo1 = "demo1-seg00"
@@ -120,7 +120,7 @@ def main():
 	#do_segments(animate=False)
 	#do_many_segments(100)
 	#do_many(100, do_auto)
-	do_both(100, 841, execute_demo1_segments, do_auto)
+	do_both(50, 841, execute_demo1_segments, do_auto)
 	
 if __name__ == "__main__":
     main()

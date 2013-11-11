@@ -31,6 +31,7 @@ from numpy import asarray
 import atexit
 import time
 import sys
+import random
 
 #Don't use args, use globals
 #args = None
@@ -388,7 +389,8 @@ def do_single_random_task(rope_state, task_params):
     setup_log(filename)
     demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points,
                                          animate=animate)
-    results = []
+    knot_results = []
+    loop_results = []
     i = 0
     while True:
         print "max_steps_before_failure =", max_steps_before_failure
@@ -397,15 +399,45 @@ def do_single_random_task(rope_state, task_params):
             break
         loop_result = loop_body(demofile, choose_segment, knot, animate, curr_step=i)
         if loop_result is not None:
-            result = loop_result['found_knot']
+            knot_result = loop_result['found_knot']
+            loop_results.append(loop_result)
         else:
-            result = None
-        results.append(result)
-        #Break if it either sucessfully ties a knot (result is True), or the main loop wants to exit (result is None)
-        if result or result is None:
+            knot_result = None
+        knot_results.append(knot_result)
+        #Break if it either sucessfully ties a knot (knot_result is True), or the main loop wants to exit (knot_result is None)
+        if knot_result:
+            add_loop_results_to_hdf5(demofile, loop_results)
+            break
+        if knot_result is None:
             break
         i += 1
-    return results
+    demofile.close()
+    return knot_results
+
+
+def add_loop_results_to_hdf5(demofile, loop_results):
+    """Saves the loop_results in the hdf5 file demofile.
+    Arguments: demofile is the h5py handle to the already open hdf5 file.
+    loop_results is a list of dicts: [{'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj,
+    'new_xyz': new_xyz} ... ]
+    """
+    #TODO: unit test this function
+    #TODO: also append a random number for all the segments (ie. generate one before the for loop)
+    for loop_result in loop_results:
+        parent_name = loop_result['segment']
+        parent = demofile[parent_name]
+        child_name = '/' + parent_name + '_' + str(random.randint(0, 10000))
+        #Make a copy of the parent
+        parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
+        child = demofile[child_name]
+        #Now update the child with loop_result
+        for lr in 'lr':
+            #TODO: test this step in ipython
+            link_name = "%s_gripper_tool_frame" % lr
+            child[link_name]["hmat"][...] = loop_result['link2eetraj'][link_name]
+        del child["cloud_xyz"]
+        child["cloud_xyz"] = loop_result['new_xyz']
+        demofile.flush()
 
 
 def set_random_seed(task_params):
@@ -429,7 +461,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
 
-    demofile = h5py.File(demofile_name, 'r')
+    demofile = h5py.File(demofile_name, 'r+')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     Globals.env.StopSimulation()
     Globals.env.Load("robots/pr2-beta-static.zae")
@@ -610,6 +642,7 @@ def prase_arguments():
 
     usage = """
     Run {0} --help for a list of arguments
+    Warning: This may write to the hdf5 demofile.
     See https://docs.google.com/document/d/17HmaCcXd5q9QST8P2rJMzuGCd3P0Rb1UdlNZATVWQz4/pub
     """.format(sys.argv[0])
 
