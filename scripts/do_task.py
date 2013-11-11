@@ -395,7 +395,11 @@ def do_single_random_task(rope_state, task_params):
         print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        result = loop_body(demofile, choose_segment, knot, animate, curr_step=i)['found_knot'];
+        loop_result = loop_body(demofile, choose_segment, knot, animate, curr_step=i)
+        if loop_result is not None:
+            result = loop_result['found_knot']
+        else:
+            result = None
         results.append(result)
         #Break if it either sucessfully ties a knot (result is True), or the main loop wants to exit (result is None)
         if result or result is None:
@@ -461,7 +465,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         knot is the knot the rope is checked against
         new_xyz is the new pointcloud
 
-    return {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}
+    return None or {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}
     """
     #TODO -- Return the new trajectory and state info to be used for bootstrapping (knot_success, new_xyz, link2eetraj,
     #TODO segment)
