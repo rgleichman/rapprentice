@@ -279,10 +279,10 @@ def find_closest_auto(demofile, new_xyz):
     for i, key in enumerate(keys):
         if values[i]["cloud_xyz"].len() < 100:
             #print "increasing the value of ", key, " from ", costs[i], " to " , costs[i]*1.6
-            costs[i] = costs[i] * 1.6
+            costs[i] = costs[i] * 2
     ibest = np.argmin(costs)
     print "ibest = ", ibest
-    #pprint.pprint(zip(keys, costs, shapes))
+    pprint.pprint(zip(keys, costs, shapes))
     #print keys
     print "best key = ", keys[ibest]
     print "best cost = ", costs[ibest]

@@ -9,7 +9,7 @@ import time
 
 SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
 DATA_DIR = "/mnt/storage/robbie/hdf5_working"
-H5FILE = "all_exp_5.h5"
+H5FILE = "all_exp_6_copy.h5"
 
 
 def do_stuff():
@@ -29,7 +29,7 @@ def do_many_segments(iterations):
         print "num success =", successes
         print "success rate so far =", float(successes) / (i + 1.0)
     print "All results =", results
-    final_results = [result[2] for result in results]
+    final_results = [result[-1] for result in results]
     final_result_ints = [1.0 if result else 0.0 for result in final_results]
     successes = reduce(lambda x, y: x + y, final_result_ints)
     print "num success =", successes
@@ -45,9 +45,12 @@ def do_many(iterations, func):
         final_result_ints = [1.0 if result else 0.0 for result in final_results]
         successes = reduce(lambda x, y: x + y, final_result_ints)
         print "num success =", successes
+        print "num failures =", i+1 - successes
+        print "success fraction =", successes, "/", i+1
         print "success rate so far =", float(successes) / (i + 1.0)
+        print "trial length = ", iterations
     print "All results =", results
-    final_results = [result[2] for result in results]
+    final_results = [result[-1] for result in results]
     final_result_ints = [1.0 if result else 0.0 for result in final_results]
     successes = reduce(lambda x, y: x + y, final_result_ints)
     print "num success =", successes
@@ -75,6 +78,7 @@ def do_both(iterations, starting_seed, func1, func2):
         print "f1_pass_rate =", f1_passes / float(i + 1)
         print "f2_pass_rate =", f2_passes / float(i + 1)
         print "combined_pass_rate =", combined_passes / float(i + 1)
+        print "total_trials =", iterations
 
 
 def do_these_segments(segments, animate=False):
@@ -131,15 +135,15 @@ def do_demo1(choose_segment, max_steps=5, random_seed=None, add_to_hdf5=False):
 
 def do_auto(random_seed=None):
     #TODO: change max_steps to 5?
-    return do_demo1(do_task.find_closest_auto, 5, random_seed, add_to_hdf5=True)
+    return do_demo1(do_task.find_closest_auto, 5, random_seed, add_to_hdf5=False)
 
 
 def main():
     #do_stuff()
     #do_segments(animate=False)
     #do_many_segments(100)
-    do_many(50, do_auto)
-    #do_both(50, 841, execute_demo1_segments, do_auto)
+    #do_many(30, do_auto)
+    do_both(100, 841, execute_demo1_segments, do_auto)
 
 
 if __name__ == "__main__":
