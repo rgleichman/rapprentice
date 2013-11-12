@@ -62,6 +62,8 @@ class TaskParameters:
         self.choose_segment = choose_segment
         self.log_name = log_name
         self.random_seed = None
+        self.add_to_hdf5 = False
+
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
 def redprint(msg):
@@ -203,12 +205,31 @@ def registration_cost(xyz0, xyz1):
 
 
 DS_SIZE = .025
+#DS_SIZE = .045
 
+#@func_utils.once
+def get_downsampled_clouds(values):
+    #TODO: actually fix this. It is probably better to upsample the derived segments
+    cloud_list = []
+    shapes = []
+    for seg in values:
+        cloud = seg["cloud_xyz"]
+        if cloud.len() > 100:
+            down_cloud = clouds.downsample(cloud, DS_SIZE)
+        else:
+            down_cloud = clouds.downsample(cloud, 0.01*DS_SIZE)
+        cloud_list.append(down_cloud)
+        shapes.append(down_cloud.shape)
+        #print "cloud_shape = ", down_cloud.shape
+    #return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
+    return cloud_list, shapes
 
-@func_utils.once
-def get_downsampled_clouds(demofile):
-    return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
-
+def downsample_if_big(cloud, size):
+    print "cloud_size", cloud.size
+    if cloud.size > 100:
+        return clouds.downsample(cloud, size)
+    else:
+        return clouds.downsample(cloud, 0.01*size)
 
 def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
@@ -230,17 +251,22 @@ def find_closest_manual(demofile, _new_xyz):
 
 
 def find_closest_auto(demofile, new_xyz):
+    import pprint
     """Return the segment with the lowest warping cost. Takes about 2 seconds."""
     parallel = True
     if parallel:
         from joblib import Parallel, delayed
-
-    keys = demofile.keys()
-    ds_clouds = get_downsampled_clouds(demofile)
-    ds_new = clouds.downsample(new_xyz, DS_SIZE)
+    items = demofile.items()
+    unzipped_items = zip(*items)
+    keys = unzipped_items[0]
+    values = unzipped_items[1]
+    ds_clouds, shapes = get_downsampled_clouds(values)
+    ds_new = clouds.downsample(new_xyz, 0.1*DS_SIZE)
+    #print 'ds_new_len shape', ds_new.shape
     if parallel:
         before = time.time()
-        costs = Parallel(n_jobs=12, verbose=0)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+        #TODO: change back n_jobs=12 ?
+        costs = Parallel(n_jobs=8, verbose=0)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
         after = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
@@ -249,7 +275,17 @@ def find_closest_auto(demofile, new_xyz):
             costs.append(registration_cost(ds_cloud, ds_new))
             print(("completed %i/%i" % (i + 1, len(ds_clouds))))
             #print(("costs\n", costs))
+    #multiply the costs of all derived demos by 1.6
+    for i, key in enumerate(keys):
+        if values[i]["cloud_xyz"].len() < 100:
+            #print "increasing the value of ", key, " from ", costs[i], " to " , costs[i]*1.6
+            costs[i] = costs[i] * 1.6
     ibest = np.argmin(costs)
+    print "ibest = ", ibest
+    #pprint.pprint(zip(keys, costs, shapes))
+    #print keys
+    print "best key = ", keys[ibest]
+    print "best cost = ", costs[ibest]
     return keys[ibest]
 
 
@@ -405,8 +441,10 @@ def do_single_random_task(rope_state, task_params):
             knot_result = None
         knot_results.append(knot_result)
         #Break if it either sucessfully ties a knot (knot_result is True), or the main loop wants to exit (knot_result is None)
+        demofile.flush()
         if knot_result:
-            add_loop_results_to_hdf5(demofile, loop_results)
+            if task_params.add_to_hdf5:
+                add_loop_results_to_hdf5(demofile, loop_results)
             break
         if knot_result is None:
             break
@@ -428,7 +466,9 @@ def add_loop_results_to_hdf5(demofile, loop_results):
         parent = demofile[parent_name]
         child_name = '/' + parent_name + '_' + str(random.randint(0, 10000))
         #Make a copy of the parent
-        parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
+        #TODO: figure out which args are necessary
+        #parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
+        parent.copy(parent, child_name)
         child = demofile[child_name]
         #Now update the child with loop_result
         for lr in 'lr':
@@ -520,8 +560,10 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
     handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
 
-    old_xyz = clouds.downsample(old_xyz, DS_SIZE)
-    new_xyz = clouds.downsample(new_xyz, DS_SIZE)
+    #old_xyz = clouds.downsample(old_xyz, DS_SIZE)
+    old_xyz = downsample_if_big(old_xyz, DS_SIZE)
+    #new_xyz = clouds.downsample(new_xyz, DS_SIZE)
+    new_xyz = downsample_if_big(new_xyz, DS_SIZE)
 
     scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
