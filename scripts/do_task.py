@@ -261,7 +261,7 @@ def find_closest_auto(demofile, new_xyz):
     keys = unzipped_items[0]
     values = unzipped_items[1]
     ds_clouds, shapes = get_downsampled_clouds(values)
-    ds_new = clouds.downsample(new_xyz, 0.1*DS_SIZE)
+    ds_new = clouds.downsample(new_xyz, 0.01*DS_SIZE)
     #print 'ds_new_len shape', ds_new.shape
     if parallel:
         before = time.time()
