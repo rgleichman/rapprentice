@@ -9,12 +9,13 @@ import time
 
 SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
 DATA_DIR = "/mnt/storage/robbie/hdf5_working"
-H5FILE = "all_exp_8_no_leafs.h5"
-
+H5FILE = "all_exp"
+file_path
+to_add
 
 def do_stuff():
     demo1 = "demo1-seg00"
-    demo_name = osp.join(DATA_DIR, H5FILE)
+    demo_name = file_path
     do_task.do_single_random_task(demofile_name=demo_name, init_rope_state_segment=demo1,
                                   perturb_radius=0.1, perturb_num_points=7)
 
@@ -98,7 +99,7 @@ def do_one(iterations, starting_seed, func1):
 def do_these_segments(segments, animate=False):
     start = time.time()
     demo1 = "demo1-seg00"
-    demofile = osp.join(DATA_DIR, H5FILE)
+    demofile = file_path
     return_val = do_task.do_single_random_task(demofile_name=demofile, init_rope_state_segment=demo1,
                                                perturb_radius=0.1, perturb_num_points=7, segments=segments,
                                                animate=animate, filename="nada.pkl")
@@ -131,7 +132,7 @@ def make_basic_task_params(demofile, choose_segment, log_name):
 def do_demo1(choose_segment, max_steps=5, random_seed=None, add_to_hdf5=False):
     start = time.time()
     demo1 = "demo1-seg00"
-    demofile = osp.join(DATA_DIR, H5FILE)
+    demofile = file_path
     rope_state = make_basic_rope_state(demo1)
     task_params = make_basic_task_params(demofile, choose_segment,
                                          "/mnt/storage/robbie/logs/test_demo1_both_auto_and_demo1-seed841-1.pkl")
@@ -149,7 +150,7 @@ def do_demo1(choose_segment, max_steps=5, random_seed=None, add_to_hdf5=False):
 
 def do_auto(random_seed=None):
     #TODO: change max_steps to 5?
-    return do_demo1(do_task.find_closest_auto, 5, random_seed, add_to_hdf5=False)
+    return do_demo1(do_task.find_closest_auto, 5, random_seed, add_to_hdf5=to_add)
 
 
 def main():
@@ -162,4 +163,29 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        print 'Enter the number of the data file you wish to use.\n'
+        file_number = int(raw_input('Input:'))
+    except ValueError:
+        print 'Not a number'
+    try:
+        datafile = H5FILE + file_number + ".h5"
+        global to_add
+        global file_path
+        to_add = True
+        file_path = osp.join(DATA_DIR, datafile)
+        if osp.isfile(file_path):
+            print 'File already exists would you like to use a copy or not add to hdf5 file?\n'
+            print 'Enter 1 to make a copy, 2 to not add to hdf5 file, and -1 to exit'
+            input = int(raw_input('Input:'))
+            if (input == 1):
+                datafile = H5FILE + file_number + '_copy.h5'
+                file_path = osp.join(DATA_DIR, datafile)
+            if (input == 2):
+                to_add = False
+            if (input == -1):
+                print 'Exiting'
+                sys.exit()
+        main()
+    except ValueError:
+        print 'Not a number'
