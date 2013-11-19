@@ -6,37 +6,11 @@ import subprocess
 import argparse
 import do_task
 import time
+import sys
 
 SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
 DATA_DIR = "/mnt/storage/robbie/hdf5_working"
-H5FILE = "all_exp"
-file_path
-to_add
-
-def do_stuff():
-    demo1 = "demo1-seg00"
-    demo_name = file_path
-    do_task.do_single_random_task(demofile_name=demo_name, init_rope_state_segment=demo1,
-                                  perturb_radius=0.1, perturb_num_points=7)
-
-
-def do_many_segments(iterations):
-    results = []
-    for i in range(iterations):
-        results.append(do_segments())
-        final_results = [result[-1] for result in results]
-        final_result_ints = [1.0 if result else 0.0 for result in final_results]
-        successes = reduce(lambda x, y: x + y, final_result_ints)
-        print "num success =", successes
-        print "success rate so far =", float(successes) / (i + 1.0)
-    print "All results =", results
-    final_results = [result[-1] for result in results]
-    final_result_ints = [1.0 if result else 0.0 for result in final_results]
-    successes = reduce(lambda x, y: x + y, final_result_ints)
-    print "num success =", successes
-    print "success rate =", successes / iterations
-    print "Final_results =", final_results
-
+H5FILE = "all_exp_"
 
 def do_many(iterations, func):
     results = []
@@ -95,20 +69,6 @@ def do_one(iterations, starting_seed, func1):
         print "f1_pass_rate =", f1_passes / float(i + 1)
         print "total_trials =", iterations
 
-
-def do_these_segments(segments, animate=False):
-    start = time.time()
-    demo1 = "demo1-seg00"
-    demofile = file_path
-    return_val = do_task.do_single_random_task(demofile_name=demofile, init_rope_state_segment=demo1,
-                                               perturb_radius=0.1, perturb_num_points=7, segments=segments,
-                                               animate=animate, filename="nada.pkl")
-    print "do_segments return val = ", return_val
-    end = time.time()
-    print "seconds taken =", end - start
-    return return_val
-
-
 def execute_demo1_segments(random_seed=None):
     segments = ["demo1-seg00", "demo1-seg01", "demo1-seg02"]
     #segments = ["demo1-seg00"]
@@ -121,7 +81,8 @@ def execute_demo1_segments(random_seed=None):
 
 
 def make_basic_rope_state(demo):
-    return do_task.RopeState(demo, 0.1, 7)
+    #return do_task.RopeState(demo, 0.1, 7)
+    return do_task.RopeState(demo, 0.14, 7)
 
 
 def make_basic_task_params(demofile, choose_segment, log_name):
@@ -161,31 +122,50 @@ def main():
     do_both(100, 841, execute_demo1_segments, do_auto)
     #do_one(100, 841, do_auto)
 
+def parse_arguments():
+    import argparse
+
+    usage = """
+    Run {0} --help for a list of arguments
+    Warning: This may write to the hdf5 demofile.
+    See https://docs.google.com/document/d/17HmaCcXd5q9QST8P2rJMzuGCd3P0Rb1UdlNZATVWQz4/pub
+    """.format(sys.argv[0])
+
+    parser = argparse.ArgumentParser(usage=usage)
+    parser.add_argument("--add_to_h5", action="store_true", help="Will write to the hdf5 file.")
+    args = parser.parse_args()
+    print "args =", args
+    return args
+
 
 if __name__ == "__main__":
+    args = prase_arguments()
+    global to_add
+    to_add = args.add_to_h5
+    print "to_add = ", to_add
     try:
         print 'Enter the number of the data file you wish to use.\n'
         file_number = int(raw_input('Input:'))
+        file_number_string = str(file_number)
     except ValueError:
         print 'Not a number'
     try:
-        datafile = H5FILE + file_number + ".h5"
-        global to_add
+        datafile = H5FILE + file_number_string + ".h5"
         global file_path
-        to_add = True
         file_path = osp.join(DATA_DIR, datafile)
         if osp.isfile(file_path):
             print 'File already exists would you like to use a copy or not add to hdf5 file?\n'
             print 'Enter 1 to make a copy, 2 to not add to hdf5 file, and -1 to exit'
             input = int(raw_input('Input:'))
             if (input == 1):
-                datafile = H5FILE + file_number + '_copy.h5'
+                datafile = H5FILE + file_number_string + '_copy.h5'
                 file_path = osp.join(DATA_DIR, datafile)
             if (input == 2):
-                to_add = False
+                to_add = False;
+                pass
             if (input == -1):
                 print 'Exiting'
                 sys.exit()
-        main()
+            main()
     except ValueError:
         print 'Not a number'

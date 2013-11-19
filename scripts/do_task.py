@@ -679,7 +679,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     return {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}
 
 
-def prase_arguments():
+def parse_arguments():
     import argparse
 
     usage = """
@@ -726,7 +726,7 @@ def prase_arguments():
 
 
 def main():
-    args = prase_arguments()
+    args = parse_arguments()
     if args.random_seed is not None:
         Globals.random_seed = args.random_seed
     choose_segment = find_closest_manual if args.select_manual else find_closest_auto
