@@ -282,7 +282,7 @@ def find_closest_auto(demofile, new_xyz):
             costs[i] = costs[i] * 2
     ibest = np.argmin(costs)
     print "ibest = ", ibest
-    pprint.pprint(zip(keys, costs, shapes))
+    #pprint.pprint(zip(keys, costs, shapes))
     #print keys
     print "best key = ", keys[ibest]
     print "best cost = ", costs[ibest]

@@ -9,7 +9,7 @@ import time
 
 SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
 DATA_DIR = "/mnt/storage/robbie/hdf5_working"
-H5FILE = "all_exp_6_copy.h5"
+H5FILE = "all_exp_8_no_leafs.h5"
 
 
 def do_stuff():
@@ -81,6 +81,20 @@ def do_both(iterations, starting_seed, func1, func2):
         print "total_trials =", iterations
 
 
+def do_one(iterations, starting_seed, func1):
+    f1_results = []
+    for i in range(iterations):
+        f1_results.append(func1(starting_seed + i))
+        f1_final_results = [result[-1] for result in f1_results]
+        f1_passes = sum(1.0 if result else 0.0 for result in f1_final_results)
+
+        print "On iteration (i+1)=", i + 1
+        print "Func1_results =", f1_results
+        print "f1_passes =", f1_passes
+        print "f1_pass_rate =", f1_passes / float(i + 1)
+        print "total_trials =", iterations
+
+
 def do_these_segments(segments, animate=False):
     start = time.time()
     demo1 = "demo1-seg00"
@@ -142,8 +156,9 @@ def main():
     #do_stuff()
     #do_segments(animate=False)
     #do_many_segments(100)
-    #do_many(30, do_auto)
+    #do_many(60, do_auto)
     do_both(100, 841, execute_demo1_segments, do_auto)
+    #do_one(100, 841, do_auto)
 
 
 if __name__ == "__main__":
