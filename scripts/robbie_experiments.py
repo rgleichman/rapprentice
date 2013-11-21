@@ -12,26 +12,6 @@ SCRIPTS_DIR = "/home/robbie/ros-stuff/robbie_git/rapprentice/scripts"
 DATA_DIR = "/mnt/storage/robbie/hdf5_working"
 H5FILE = "all_exp_"
 
-def do_many(iterations, func):
-    results = []
-    for i in range(iterations):
-        results.append(func())
-        final_results = [result[-1] for result in results]
-        final_result_ints = [1.0 if result else 0.0 for result in final_results]
-        successes = reduce(lambda x, y: x + y, final_result_ints)
-        print "num success =", successes
-        print "num failures =", i+1 - successes
-        print "success fraction =", successes, "/", i+1
-        print "success rate so far =", float(successes) / (i + 1.0)
-        print "trial length = ", iterations
-    print "All results =", results
-    final_results = [result[-1] for result in results]
-    final_result_ints = [1.0 if result else 0.0 for result in final_results]
-    successes = reduce(lambda x, y: x + y, final_result_ints)
-    print "num success =", successes
-    print "success rate =", successes / iterations
-    print "Final_results =", final_results
-
 
 def do_both(iterations, starting_seed, func1, func2):
     f1_results = []
@@ -81,8 +61,8 @@ def execute_demo1_segments(random_seed=None):
 
 
 def make_basic_rope_state(demo):
-    #return do_task.RopeState(demo, 0.1, 7)
-    return do_task.RopeState(demo, 0.14, 7)
+    return do_task.RopeState(demo, 0.1, 7)
+    #return do_task.RopeState(demo, 0.14, 7)
 
 
 def make_basic_task_params(demofile, choose_segment, log_name):
@@ -93,6 +73,7 @@ def make_basic_task_params(demofile, choose_segment, log_name):
 def do_demo1(choose_segment, max_steps=5, random_seed=None, add_to_hdf5=False):
     start = time.time()
     demo1 = "demo1-seg00"
+    #demo1 = "demo26-seg00"
     demofile = file_path
     rope_state = make_basic_rope_state(demo1)
     task_params = make_basic_task_params(demofile, choose_segment,
@@ -111,7 +92,7 @@ def do_demo1(choose_segment, max_steps=5, random_seed=None, add_to_hdf5=False):
 
 def do_auto(random_seed=None):
     #TODO: change max_steps to 5?
-    return do_demo1(do_task.find_closest_auto, 5, random_seed, add_to_hdf5=to_add)
+    return do_demo1(do_task.auto_choose, 5, random_seed, add_to_hdf5=to_add)
 
 
 def main():
@@ -119,8 +100,8 @@ def main():
     #do_segments(animate=False)
     #do_many_segments(100)
     #do_many(60, do_auto)
-    do_both(100, 841, execute_demo1_segments, do_auto)
-    #do_one(100, 841, do_auto)
+    #do_both(100, 841, execute_demo1_segments, do_auto)
+    do_one(20, 841, do_auto)
 
 def parse_arguments():
     import argparse
@@ -132,16 +113,16 @@ def parse_arguments():
     """.format(sys.argv[0])
 
     parser = argparse.ArgumentParser(usage=usage)
-    parser.add_argument("--add_to_h5", action="store_true", help="Will write to the hdf5 file.")
+    parser.add_argument("--add", action="store_true", help="Will write to the hdf5 file.")
     args = parser.parse_args()
     print "args =", args
     return args
 
 
 if __name__ == "__main__":
-    args = prase_arguments()
+    args = parse_arguments()
     global to_add
-    to_add = args.add_to_h5
+    to_add = args.add
     print "to_add = ", to_add
     try:
         print 'Enter the number of the data file you wish to use.\n'

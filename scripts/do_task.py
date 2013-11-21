@@ -199,14 +199,18 @@ def exec_traj_sim(bodypart2traj, animate):
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
-    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, n_iter=10)
+    #TODO: n_iter was 10
+    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1,
+                                    rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=10,
+                                    reg_init=10, reg_final=.01)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
-
-DS_SIZE = .025
+#TODO: was 0.025
+DS_SIZE = .021
 #DS_SIZE = .045
 
+#TODO: possibly memoize
 #@func_utils.once
 def get_downsampled_clouds(values):
     #TODO: actually fix this. It is probably better to upsample the derived segments
@@ -214,22 +218,22 @@ def get_downsampled_clouds(values):
     shapes = []
     for seg in values:
         cloud = seg["cloud_xyz"]
-        if cloud.len() > 100:
+        cloud[:, 2] = np.mean(cloud[:, 2])
+        if cloud.len() > 200:
             down_cloud = clouds.downsample(cloud, DS_SIZE)
         else:
             down_cloud = clouds.downsample(cloud, 0.01*DS_SIZE)
+
+        #down_cloud[20:, 2] = 0.66
         cloud_list.append(down_cloud)
         shapes.append(down_cloud.shape)
         #print "cloud_shape = ", down_cloud.shape
     #return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
     return cloud_list, shapes
 
-def downsample_if_big(cloud, size):
+def downsample(cloud, size):
     print "cloud_size", cloud.size
-    if cloud.size > 100:
-        return clouds.downsample(cloud, size)
-    else:
-        return clouds.downsample(cloud, 0.01*size)
+    return clouds.downsample(cloud, size)
 
 def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
@@ -250,7 +254,7 @@ def find_closest_manual(demofile, _new_xyz):
     return chosen_seg
 
 
-def find_closest_auto(demofile, new_xyz):
+def auto_choose(demofile, new_xyz):
     import pprint
     """Return the segment with the lowest warping cost. Takes about 2 seconds."""
     parallel = True
@@ -266,7 +270,7 @@ def find_closest_auto(demofile, new_xyz):
     if parallel:
         before = time.time()
         #TODO: change back n_jobs=12 ?
-        costs = Parallel(n_jobs=8, verbose=0)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+        costs = Parallel(n_jobs=8, verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
         after = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
@@ -275,14 +279,9 @@ def find_closest_auto(demofile, new_xyz):
             costs.append(registration_cost(ds_cloud, ds_new))
             print(("completed %i/%i" % (i + 1, len(ds_clouds))))
             #print(("costs\n", costs))
-    #multiply the costs of all derived demos by 1.6
-    for i, key in enumerate(keys):
-        if values[i]["cloud_xyz"].len() < 100:
-            #print "increasing the value of ", key, " from ", costs[i], " to " , costs[i]*1.6
-            costs[i] = costs[i] * 2
     ibest = np.argmin(costs)
     print "ibest = ", ibest
-    #pprint.pprint(zip(keys, costs, shapes))
+    pprint.pprint(zip(keys, costs, shapes))
     #print keys
     print "best key = ", keys[ibest]
     print "best cost = ", costs[ibest]
@@ -441,7 +440,6 @@ def do_single_random_task(rope_state, task_params):
             knot_result = None
         knot_results.append(knot_result)
         #Break if it either sucessfully ties a knot (knot_result is True), or the main loop wants to exit (knot_result is None)
-        demofile.flush()
         if knot_result:
             if task_params.add_to_hdf5:
                 add_loop_results_to_hdf5(demofile, loop_results)
@@ -477,6 +475,7 @@ def add_loop_results_to_hdf5(demofile, loop_results):
             child[link_name]["hmat"][...] = loop_result['link2eetraj'][link_name]
         del child["cloud_xyz"]
         child["cloud_xyz"] = loop_result['new_xyz']
+        child["derived"] = True
         demofile.flush()
 
 
@@ -549,7 +548,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     move_sim_arms_to_side()
     #TODO -- Possibly refactor this section to be before the loop.
 
-    new_xyz = Globals.sim.observe_cloud()
+    new_xyz = Globals.sim.observe_cloud(upsample=120)
     segment = choose_segment(demofile, new_xyz)
     if segment is None:
         return None
@@ -557,14 +556,18 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
 
     handles = []
     old_xyz = np.squeeze(seg_info["cloud_xyz"])
-    handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
     handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
 
+    #TODO: test that old_xyz is now bigger if from a derived segment
     #old_xyz = clouds.downsample(old_xyz, DS_SIZE)
-    old_xyz = downsample_if_big(old_xyz, DS_SIZE)
+    if not "derived" in seg_info.keys():
+        old_xyz = downsample(old_xyz, DS_SIZE)
     #new_xyz = clouds.downsample(new_xyz, DS_SIZE)
-    new_xyz = downsample_if_big(new_xyz, DS_SIZE)
+    #new_xyz = downsample_if_big(new_xyz, DS_SIZE)
+    handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
 
+    print "new_xyz cloud size", new_xyz.shape
+    print "old_xyz cloud size", old_xyz.shape
     scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
     f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
@@ -729,7 +732,7 @@ def main():
     args = parse_arguments()
     if args.random_seed is not None:
         Globals.random_seed = args.random_seed
-    choose_segment = find_closest_manual if args.select_manual else find_closest_auto
+    choose_segment = find_closest_manual if args.select_manual else auto_choose
     rope_state = RopeState(args.fake_data_segment, args.sim_init_perturb_radius, args.sim_init_perturb_num_points)
     params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation,
                             max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment,
