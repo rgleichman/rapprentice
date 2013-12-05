@@ -100,8 +100,10 @@ def main():
     #do_segments(animate=False)
     #do_many_segments(100)
     #do_many(60, do_auto)
-    #do_both(100, 841, execute_demo1_segments, do_auto)
-    do_one(20, 841, do_auto)
+    do_both(100, 841, execute_demo1_segments, do_auto)
+    #do_one(20, 841, do_auto)
+    #do_one(20, 841, execute_demo1_segments)
+
 
 def parse_arguments():
     import argparse

@@ -32,6 +32,7 @@ import atexit
 import time
 import sys
 import random
+import copy
 
 #Don't use args, use globals
 #args = None
@@ -199,15 +200,16 @@ def exec_traj_sim(bodypart2traj, animate):
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
-    #TODO: n_iter was 10
+    #TODO: n_iter was 10, reg_final was 0.01
     f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1,
                                     rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=10,
-                                    reg_init=10, reg_final=.01)
+                                    reg_init=10, reg_final=.03)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
 #TODO: was 0.025
-DS_SIZE = .021
+DS_SIZE = .025
+#DS_SIZE = .021
 #DS_SIZE = .045
 
 #TODO: possibly memoize
@@ -218,22 +220,27 @@ def get_downsampled_clouds(values):
     shapes = []
     for seg in values:
         cloud = seg["cloud_xyz"]
-        cloud[:, 2] = np.mean(cloud[:, 2])
-        if cloud.len() > 200:
+        #This eliminates the z dimension
+        cloud = cloud[...].copy()
+        #cloud[:, 2] = np.mean(cloud[:, 2])
+        if cloud.shape[0] > 200:
             down_cloud = clouds.downsample(cloud, DS_SIZE)
         else:
-            down_cloud = clouds.downsample(cloud, 0.01*DS_SIZE)
+            down_cloud = clouds.downsample(cloud, 0.01 * DS_SIZE)
 
         #down_cloud[20:, 2] = 0.66
+        #down_cloud[:, 2] = np.mean(down_cloud[:, 2])
         cloud_list.append(down_cloud)
         shapes.append(down_cloud.shape)
         #print "cloud_shape = ", down_cloud.shape
     #return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
     return cloud_list, shapes
 
+
 def downsample(cloud, size):
     print "cloud_size", cloud.size
     return clouds.downsample(cloud, size)
+
 
 def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
@@ -256,6 +263,7 @@ def find_closest_manual(demofile, _new_xyz):
 
 def auto_choose(demofile, new_xyz):
     import pprint
+
     """Return the segment with the lowest warping cost. Takes about 2 seconds."""
     parallel = True
     if parallel:
@@ -265,12 +273,12 @@ def auto_choose(demofile, new_xyz):
     keys = unzipped_items[0]
     values = unzipped_items[1]
     ds_clouds, shapes = get_downsampled_clouds(values)
-    ds_new = clouds.downsample(new_xyz, 0.01*DS_SIZE)
+    ds_new = clouds.downsample(new_xyz, 0.01 * DS_SIZE)
     #print 'ds_new_len shape', ds_new.shape
     if parallel:
         before = time.time()
         #TODO: change back n_jobs=12 ?
-        costs = Parallel(n_jobs=8, verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+        costs = Parallel(n_jobs=8, verbose=0)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
         after = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
@@ -405,7 +413,7 @@ def do_single_random_task(rope_state, task_params):
     task_params -- a task_params object
 
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
-    
+
     """
     #Begin: setup local variables from parameters
     filename = task_params.log_name
@@ -424,6 +432,27 @@ def do_single_random_task(rope_state, task_params):
     setup_log(filename)
     demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points,
                                          animate=animate)
+
+    ###TODO: remove
+    #new_xyz = Globals.sim.observe_cloud(upsample=120)
+    #parent_name = 'demo13-seg00'
+    #parent = demofile[parent_name]
+    #child_name = '/' + parent_name + '_sim'
+    ##Make a copy of the parent
+    ##TODO: figure out which args are necessary
+    ##parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
+    #parent.copy(parent, child_name)
+    #child = demofile[child_name]
+    ##Now update the child with loop_result
+    #del child["cloud_xyz"]
+    #child["cloud_xyz"] = new_xyz
+    #child["derived"] = True
+    #demofile.flush()
+    #return
+    #assert False
+    ##TODO
+    #TODO: remove
+    #task_params.add_to_hdf5 = True
     knot_results = []
     loop_results = []
     i = 0
@@ -529,7 +558,7 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
 
 
 def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
-    """Do the body of the main task execution loop (ie. do a segment). 
+    """Do the body of the main task execution loop (ie. do a segment).
     Arguments:
         curr_step is 0 indexed
         choose_segment is a function that returns the key in the demofile to the segment
@@ -562,7 +591,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     #old_xyz = clouds.downsample(old_xyz, DS_SIZE)
     if not "derived" in seg_info.keys():
         old_xyz = downsample(old_xyz, DS_SIZE)
-    #new_xyz = clouds.downsample(new_xyz, DS_SIZE)
+        #new_xyz = clouds.downsample(new_xyz, DS_SIZE)
     #new_xyz = downsample_if_big(new_xyz, DS_SIZE)
     handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
 
@@ -570,14 +599,20 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     print "old_xyz cloud size", old_xyz.shape
     scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
-    f, _ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
+    #TODO: get rid of g
+    f, g = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
                                     plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
                                     reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
     f = registration.unscale_tps(f, src_params, targ_params)
+    g = registration.unscale_tps(g, src_params, targ_params)
     #Globals.exec_log(curr_step, "gen_traj.f", f)
 
+    #handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
+    #                                           old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
-                                               old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
+                                               old_xyz.max(axis=0) + np.r_[0, 0, .02], xres=.01, yres=.01, zres=.04))
+    #handles.extend(plotting_openrave.draw_grid(Globals.env, g.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
+    #                                           old_xyz.max(axis=0) + np.r_[0, 0, .02], xres=.01, yres=.01, zres=.04))
 
     link2eetraj = {}
     #link2eetraj is a hash of gripper fram to new trajectory
