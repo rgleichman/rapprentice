@@ -201,9 +201,8 @@ def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
     #TODO: n_iter was 10, reg_final was 0.01
-    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1,
-                                    rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=10,
-                                    reg_init=10, reg_final=.03)
+    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10,
+                                    reg_init=10, reg_final=.01)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
