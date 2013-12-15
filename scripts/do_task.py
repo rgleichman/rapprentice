@@ -196,13 +196,15 @@ def exec_traj_sim(bodypart2traj, animate):
                               callback=sim_callback, step_viewer=animate)
     return True
 
+#orig cost_reg_final = 0.01
+cost_reg_final = 0.03
 
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
     #TODO: n_iter was 10, reg_final was 0.01
     f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10,
-                                    reg_init=10, reg_final=.01)
+                                    reg_init=10, reg_final=cost_reg_final)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
@@ -493,8 +495,8 @@ def add_loop_results_to_hdf5(demofile, loop_results):
         child_name = '/' + parent_name + '_' + str(random.randint(0, 10000))
         #Make a copy of the parent
         #TODO: figure out which args are necessary
-        #parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
-        parent.copy(parent, child_name)
+        parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
+        #parent.copy(parent, child_name)
         child = demofile[child_name]
         #Now update the child with loop_result
         for lr in 'lr':
@@ -503,7 +505,9 @@ def add_loop_results_to_hdf5(demofile, loop_results):
             child[link_name]["hmat"][...] = loop_result['link2eetraj'][link_name]
         del child["cloud_xyz"]
         child["cloud_xyz"] = loop_result['new_xyz']
-        child["derived"] = True
+        demofile.flush()
+        if not "derived" in child.keys():
+            child["derived"] = True
         demofile.flush()
 
 
@@ -574,9 +578,11 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     redprint("Acquire point cloud")
 
     move_sim_arms_to_side()
-    #TODO -- Possibly refactor this section to be before the loop.
+    #TODO -- Possibly refactor this section to be before the loop
 
-    new_xyz = Globals.sim.observe_cloud(upsample=120)
+    new_xyz = Globals.sim.observe_cloud()
+    new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
+
     segment = choose_segment(demofile, new_xyz)
     if segment is None:
         return None
@@ -590,6 +596,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     #old_xyz = clouds.downsample(old_xyz, DS_SIZE)
     if not "derived" in seg_info.keys():
         old_xyz = downsample(old_xyz, DS_SIZE)
+        print "derived, so downsamping"
         #new_xyz = clouds.downsample(new_xyz, DS_SIZE)
     #new_xyz = downsample_if_big(new_xyz, DS_SIZE)
     handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
@@ -713,7 +720,7 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
         redprint("Not a knot. Continuing.")
 
     redprint("Segment %s result: %s" % (segment, success))
-    return {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}
+    return {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz_upsampled}
 
 
 def parse_arguments():
