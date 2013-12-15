@@ -64,6 +64,8 @@ class TaskParameters:
         self.log_name = log_name
         self.random_seed = None
         self.add_to_hdf5 = False
+        #only_original_segments, if true, will only register with the original segments
+        self.only_original_segments = False
 
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
@@ -262,7 +264,13 @@ def find_closest_manual(demofile, _new_xyz):
     return chosen_seg
 
 
-def auto_choose(demofile, new_xyz):
+def auto_choose(demofile, new_xyz, only_original_segments):
+    """
+    @param demofile:
+    @param new_xyz:
+    @param only_original_segments: if true, then only the original_segments will be registered with
+    @return:
+    """
     import pprint
 
     """Return the segment with the lowest warping cost. Takes about 2 seconds."""
@@ -270,6 +278,10 @@ def auto_choose(demofile, new_xyz):
     if parallel:
         from joblib import Parallel, delayed
     items = demofile.items()
+    if only_original_segments:
+        #remove all derived segments from items
+        print("Only registering with the original segments")
+        items = [item for item in items if not "derived" in item[1].keys()]
     unzipped_items = zip(*items)
     keys = unzipped_items[0]
     values = unzipped_items[1]
@@ -462,7 +474,7 @@ def do_single_random_task(rope_state, task_params):
         print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        loop_result = loop_body(demofile, choose_segment, knot, animate, curr_step=i)
+        loop_result = loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=i)
         if loop_result is not None:
             knot_result = loop_result['found_knot']
             loop_results.append(loop_result)
@@ -560,13 +572,14 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     return demofile
 
 
-def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
+def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=None):
     """Do the body of the main task execution loop (ie. do a segment).
     Arguments:
         curr_step is 0 indexed
         choose_segment is a function that returns the key in the demofile to the segment
         knot is the knot the rope is checked against
         new_xyz is the new pointcloud
+        task_params is used for the only_original_segments argument
 
     return None or {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}
     """
@@ -583,7 +596,8 @@ def loop_body(demofile, choose_segment, knot, animate, curr_step=None):
     new_xyz = Globals.sim.observe_cloud()
     new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
 
-    segment = choose_segment(demofile, new_xyz)
+    print "loop_body only_original_segments", task_params.only_original_segments
+    segment = choose_segment(demofile, new_xyz, task_params.only_original_segments)
     if segment is None:
         return None
     seg_info = demofile[segment]
