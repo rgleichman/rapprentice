@@ -249,7 +249,7 @@ def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
 
 
-def find_closest_manual(demofile, _new_xyz):
+def find_closest_manual(demofile, _new_xyz, original=False):
     """for now, just prompt the user"""
     seg_names = demofile.keys()
     print_string = "choose from the following options (type an integer). Enter a negative number to exit."
@@ -302,7 +302,7 @@ def auto_choose(demofile, new_xyz, only_original_segments):
             #print(("costs\n", costs))
     ibest = np.argmin(costs)
     print "ibest = ", ibest
-    pprint.pprint(zip(keys, costs, shapes))
+    #pprint.pprint(zip(keys, costs, shapes))
     #print keys
     print "best key = ", keys[ibest]
     print "best cost = ", costs[ibest]
@@ -445,7 +445,7 @@ def do_single_random_task(rope_state, task_params):
     setup_log(filename)
     demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points,
                                          animate=animate)
-
+    print "Randomizing", init_rope_state_segment
     ###TODO: remove
     #new_xyz = Globals.sim.observe_cloud(upsample=120)
     #parent_name = 'demo13-seg00'
@@ -490,7 +490,7 @@ def do_single_random_task(rope_state, task_params):
             break
         i += 1
     demofile.close()
-    return knot_results
+    return (knot_results, [result['segment'] for result in loop_results])
 
 
 def add_loop_results_to_hdf5(demofile, loop_results):

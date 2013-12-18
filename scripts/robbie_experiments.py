@@ -19,15 +19,19 @@ def do_both(iterations, starting_seed, func1, func2):
     for i in range(iterations):
         f1_results.append(func1(starting_seed + i))
         f2_results.append(func2(starting_seed + i))
-        f1_final_results = [result[-1] for result in f1_results]
+        f1_knots = [result[0] for result in f1_results]
+        f2_knots = [result[0] for result in f2_results]
+        f1_final_results = [result[-1] for result in f1_knots]
         f1_passes = sum(1.0 if result else 0.0 for result in f1_final_results)
-        f2_final_results = [result[-1] for result in f2_results]
+        f2_final_results = [result[-1] for result in f2_knots]
         f2_passes = sum(1.0 if result else 0.0 for result in f2_final_results)
         combined_passes = sum(1 if (f1 or f2) else 0 for f1, f2 in zip(f1_final_results, f2_final_results))
 
         print "On iteration (i+1)=", i + 1
         print "Func1_results =", f1_results
         print "Func2_results =", f2_results
+        print "Func1_knots =", f1_knots
+        print "Func2_knots =", f2_knots
         print "f1_passes =", f1_passes
         print "f2_passes =", f2_passes
         print "f1_pass_rate =", f1_passes / float(i + 1)
@@ -41,12 +45,14 @@ def do_one(iterations, starting_seed, func1, original_only=False):
     print "do_one, original_only", original_only
     for i in range(iterations):
         f1_results.append(func1(starting_seed + i, original_only))
-        f1_final_results = [result[-1] for result in f1_results]
+        f1_knots = [result[0] for result in f1_results]
+        f1_final_results = [result[-1] for result in f1_knots]
         f1_passes = sum(1.0 if result else 0.0 for result in f1_final_results)
 
         print "On iteration (i+1)=", i + 1
         print "Func1_results =", f1_results
-        print "f1_passes =", f1_passes
+        print "Func1_knots =", f1_knots
+        print "f1_passes / iterations =", f1_passes, "/", i + 1
         print "f1_pass_rate =", f1_passes / float(i + 1)
         print "total_trials =", iterations
 
@@ -56,6 +62,16 @@ def execute_demo1_segments(random_seed=None):
     seg_iter = (x for x in segments)
 
     def choose_seg(_, _x):
+        return seg_iter.next()
+
+    return do_demo1(choose_seg, 3, random_seed)
+
+def execute_demo2_segments(random_seed=None, original_only=False):
+    segments = ["demo2-seg00", "demo2-seg01", "demo2-seg02"]
+    #segments = ["demo1-seg00"]
+    seg_iter = (x for x in segments)
+
+    def choose_seg(_, _x, _y):
         return seg_iter.next()
 
     return do_demo1(choose_seg, 3, random_seed)
@@ -74,8 +90,8 @@ def make_basic_task_params(demofile, choose_segment, log_name):
 def do_demo1(choose_segment, max_steps=5, random_seed=None, add_to_hdf5=False, original_only=False):
     print "do_demo1 original_only", original_only
     start = time.time()
-    demo1 = "demo1-seg00"
-    #demo1 = "demo26-seg00"
+    #demo1 = "demo1-seg00"
+    demo1 = "demo26-seg00"
     demofile = file_path
     rope_state = make_basic_rope_state(demo1)
     task_params = make_basic_task_params(demofile, choose_segment,
@@ -103,8 +119,10 @@ def main(original_only=False):
     #do_both(100, 841, execute_demo1_segments, do_auto)
     #do_both(100, 4215, execute_demo1_segments, do_auto)
     print "main original_only", original_only
-    do_one(30, 100, do_auto, original_only=original_only)
+    #do_one(100, 841, do_auto, original_only=original_only)
+    #do_one(100, 4215, execute_demo2_segments)
     #do_one(20, 841, execute_demo1_segments)
+    do_one(60, 100, do_auto, original_only=False)
 
 
 def parse_arguments():
