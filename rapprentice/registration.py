@@ -17,6 +17,7 @@ from __future__ import division
 import numpy as np
 import scipy.spatial.distance as ssd
 from rapprentice import tps, svds, math_utils
+import IPython as ipy
 # from svds import svds
 
 
@@ -227,8 +228,45 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
 
     return f
 
-def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 
+def tps_rpm_bootstrap(x_nd, y_md, z_kd, xy_corr, n_init_iter = 10, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 
             plotting = False, plot_cb = None, old_xyz=None, new_xyz=None):
+    """
+    modification for tps_rpm in order to use bootstrapping info
+
+    return a warp taking x to z, proceeds by warping y->z, then intializes tps_rpm with the correspondences from that warping
+    """
+    _, _, yz_corr = tps_rpm_bij(y_md, z_kd, n_iter = n_init_iter, reg_init = reg_init, reg_final = reg_final, 
+                                rad_init = rad_init, rad_final = rad_final, rot_reg = rot_reg, plotting=True,
+                                plot_cb = plot_cb, old_xyz = old_xyz, new_xyz = new_xyz, return_corr = True)
+    xz_corr = xy_corr.dot(yz_corr)
+    # corr_nk, r_N, _ =  balance_matrix3(xz_corr, 10, 1e-1, 1e-2)
+    # corr_nk += 1e-9
+    corr_nk = xz_corr
+        
+    wt_n = corr_nk.sum(axis=1)
+    wt_k = corr_nk.sum(axis=0)
+
+
+    xtarg_nd = (corr_nk/wt_n[:,None]).dot(z_kd)
+    ztarg_kd = (corr_nk/wt_k[None,:]).T.dot(x_nd)
+
+    f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = reg_final, wt_n=wt_n, rot_coef = rot_reg)
+    g = fit_ThinPlateSpline(z_kd, ztarg_kd, bend_coef = reg_final, wt_n=wt_k, rot_coef = rot_reg)
+    f._cost = tps.tps_cost(f.lin_ag, f.trans_g, f.w_ng, f.x_na, xtarg_nd, reg_final, wt_n=wt_n)/wt_n.mean()
+    g._cost = tps.tps_cost(g.lin_ag, g.trans_g, g.w_ng, g.x_na, ztarg_kd, reg_final, wt_n=wt_k)/wt_k.mean()
+    print 'cost:\t', f._cost + g._cost
+
+    plot_cb(x_nd, z_kd, xtarg_nd, corr_nk, wt_n, f, x_nd, z_kd, last_one=0)
+
+    result = tps_rpm_bij(x_nd, z_kd, n_iter = n_iter, reg_init = reg_init, reg_final = reg_final, 
+                         rad_init = rad_init, rad_final = rad_final, rot_reg = rot_reg, plotting = plotting,
+                         plot_cb = plot_cb, old_xyz = old_xyz, new_xyz = new_xyz, f_init = f, g_init = g, return_corr = True)
+    
+    return result
+
+
+def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 
+            plotting = False, plot_cb = None, old_xyz=None, new_xyz=None, f_init = None, g_init = None, return_corr = False):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
     reg_init/reg_final: regularization on curvature
@@ -239,12 +277,16 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
     _,d=x_nd.shape
     regs = loglinspace(reg_init, reg_final, n_iter)
     rads = loglinspace(rad_init, rad_final, n_iter)
-
-    f = ThinPlateSpline(d)
-    f.trans_g = np.median(y_md,axis=0) - np.median(x_nd,axis=0)
-    
-    g = ThinPlateSpline(d)
-    g.trans_g = -f.trans_g
+    if not f_init:
+        f = ThinPlateSpline(d)
+        f.trans_g = np.median(y_md,axis=0) - np.median(x_nd,axis=0)
+    else:
+        f = f_init
+    if not f_init:
+        g = ThinPlateSpline(d)
+        g.trans_g = -f.trans_g
+    else:
+        g = g_init
 
 
     # r_N = None
@@ -276,6 +318,8 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
 
     f._cost = tps.tps_cost(f.lin_ag, f.trans_g, f.w_ng, f.x_na, xtarg_nd, regs[i], wt_n=wt_n)/wt_n.mean()
     g._cost = tps.tps_cost(g.lin_ag, g.trans_g, g.w_ng, g.x_na, ytarg_md, regs[i], wt_n=wt_m)/wt_m.mean()
+    if return_corr:
+        return f, g, corr_nm
     return f,g
 
 def tps_reg_cost(f):
