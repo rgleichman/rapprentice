@@ -10,4 +10,4 @@ def animate_traj(traj, robot, pause=True, step_viewer=True, restore=True, callba
         if callback is not None: callback(i)
         robot.SetActiveDOFValues(dofs)
         if pause: viewer.Idle()
-        elif step_viewer: viewer.Step()
+        elif step_viewer and not i%10: viewer.Step()

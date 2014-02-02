@@ -33,6 +33,7 @@ import time
 import sys
 import random
 import copy
+import dhm_utils as dhm_u
 
 #Don't use args, use globals
 #args = None
@@ -135,10 +136,10 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
     gripper_velocity = 0.005
     joint_traj = np.linspace(start_val, target_val, np.ceil(abs(target_val - start_val) / gripper_velocity))
     #print "joint_traj after retime =", joint_traj
-    for val in joint_traj:
+    for i, val in enumerate(joint_traj):
         Globals.robot.SetDOFValues([val], [joint_ind])
         Globals.sim.step()
-        if animate:
+        if animate and not i%10:
             Globals.viewer.Step()
             # add constraints if necessary
 
@@ -469,6 +470,10 @@ def do_single_random_task(rope_state, task_params):
     knot_results = []
     loop_results = []
     i = 0
+    move_sim_arms_to_side()
+    print "set viewpoint, then press 'p'"
+    Globals.viewer.Idle()
+
     while True:
         print "max_steps_before_failure =", max_steps_before_failure
         print "i =", i
@@ -480,6 +485,7 @@ def do_single_random_task(rope_state, task_params):
             loop_results.append(loop_result)
         else:
             knot_result = None
+        redprint('knot results:\t' + str(knot_result))
         knot_results.append(knot_result)
         #Break if it either sucessfully ties a knot (knot_result is True), or the main loop wants to exit (knot_result is None)
         if knot_result:
@@ -687,9 +693,10 @@ def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=No
             new_ee_traj = link2eetraj[ee_link_name][i_start: i_end + 1]
             new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
             #Call the planner (eg. trajopt)
-            new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
-                                                       Globals.robot.GetLink(ee_link_name), new_ee_traj_rs,
-                                                       old_joint_traj_rs)
+            with dhm_u.suppress_stdout():
+                new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
+                                                           Globals.robot.GetLink(ee_link_name), new_ee_traj_rs,
+                                                           old_joint_traj_rs)
             part_name = {"l": "larm", "r": "rarm"}[lr]
             bodypart2traj[part_name] = new_joint_traj
 
@@ -766,7 +773,7 @@ def parse_arguments():
     parser.add_argument("--sim_init_perturb_num_points", type=int, default=7,
                         help="Perturb the rope state specified by fake_data_segment at this many points a distance of sim_init_perturb_radius.")
 
-    parser.add_argument("--sim_desired_knot_name", type=str, default=None,
+    parser.add_argument("--sim_desired_knot_name", type=str, default='K3a1',
                         help="Which knot the robot should tie. \"K3a1\" is an overhand knot.")
 
     parser.add_argument("--max_steps_before_failure", type=int, default=-1,
