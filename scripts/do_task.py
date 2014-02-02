@@ -34,6 +34,7 @@ import sys
 import random
 import copy
 import dhm_utils as dhm_u
+import IPython as ipy
 
 #Don't use args, use globals
 #args = None
@@ -106,6 +107,58 @@ def binarize_gripper(angle):
     thresh = .04
     return angle > thresh
 
+
+def load_random_start_segment(demofile):
+    start_keys = [k for k in demofile.keys() if k.startswith('demo') and k.endswith('00')]
+    seg_name = random.choice(start_keys)
+    return demofile[seg_name]['cloud_xyz']
+
+def rotate_about_median(xyz, theta):
+    """                                                                                                                                             
+    rotates xyz by theta around the median along the x, y dimensions                                                                                
+    """
+    median = np.median(xyz, axis=0)
+    centered_xyz = xyz - median
+    r_mat = np.eye(3)
+    r_mat[0:2, 0:2] = np.array([[np.cos(theta), -np.sin(theta)],[np.sin(theta), np.cos(theta)]])
+    rotated_xyz = centered_xyz.dot(r_mat)
+    new_xyz = rotated_xyz + median    
+    return new_xyz
+
+FEASIBLE_REGION = [[.3, -.5], [.8, .5]]# bounds on region robot can hope to tie rope in
+
+def place_in_feasible_region(xyz):
+    max_xyz = np.max(xyz, axis=0)
+    min_xyz = np.min(xyz, axis=0)
+    offset = np.zeros(3)
+    for i in range(2):
+        if min_xyz[i] < FEASIBLE_REGION[0][i]:
+            offset[i] = FEASIBLE_REGION[0][i] - min_xyz[i]
+        elif max_xyz[i] > FEASIBLE_REGION[1][i]:
+            offset[i] = FEASIBLE_REGION[1][i] - max_xyz[i]
+    return xyz + offset
+
+
+
+def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15):
+    """
+    samples a rope state, by picking a random segment, perturbing, rotating about the median, 
+    then setting a random translation such that the rope is essentially within grasp room
+    """
+
+    # TODO: pick a random rope initialization
+    new_xyz= load_random_start_segment(demofile)
+    perturb_radius = random.uniform(min_rad, max_rad)
+    rope_nodes = rope_initialization.find_path_through_point_cloud( new_xyz,
+                                                                    perturb_peak_dist=perturb_radius,
+                                                                    num_perturb_points=perturb_points)
+    rand_theta = np.pi*(np.random.rand() - 0.5)
+    # rand_theta = np.random.randn()
+    rope_nodes = rotate_about_median(rope_nodes, rand_theta)
+    r_trans = np.r_[np.random.multivariate_normal([0, 0], np.eye(2)), [0]]
+    rope_nodes = rope_nodes + r_trans    
+    rope_nodes = place_in_feasible_region(rope_nodes)
+    return rope_nodes
 
 def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
     """Opens or closes the gripper. Also steps the simulation.
@@ -419,11 +472,10 @@ def move_sim_arms_to_side():
                                Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
 
-def do_single_random_task(rope_state, task_params):
+def do_single_random_task(task_params):
     """Do one task.
 
     Arguments:
-    rope_state -- a RopeState object
     task_params -- a task_params object
 
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
@@ -432,9 +484,6 @@ def do_single_random_task(rope_state, task_params):
     #Begin: setup local variables from parameters
     filename = task_params.log_name
     demofile_name = task_params.demofile_name
-    init_rope_state_segment = rope_state.segment
-    perturb_radius = rope_state.perturb_radius
-    perturb_num_points = rope_state.perturb_num_points
     animate = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = task_params.choose_segment
@@ -444,9 +493,8 @@ def do_single_random_task(rope_state, task_params):
     ### Setup ###
     set_random_seed(task_params)
     setup_log(filename)
-    demofile = setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points,
-                                         animate=animate)
-    print "Randomizing", init_rope_state_segment
+    demofile = setup_and_return_demofile(demofile_name, animate=animate)
+
     ###TODO: remove
     #new_xyz = Globals.sim.observe_cloud(upsample=120)
     #parent_name = 'demo13-seg00'
@@ -471,8 +519,6 @@ def do_single_random_task(rope_state, task_params):
     loop_results = []
     i = 0
     move_sim_arms_to_side()
-    print "set viewpoint, then press 'p'"
-    Globals.viewer.Idle()
 
     while True:
         print "max_steps_before_failure =", max_steps_before_failure
@@ -545,7 +591,7 @@ def setup_log(filename):
             atexit.register(Globals.exec_log.close)
 
 #TODO  Consider encapsulating these intermedite return values in a class.
-def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_radius, perturb_num_points, animate):
+def setup_and_return_demofile(demofile_name, animate):
     """For the simulation, this code runs before the main loop. It also sets the numpy random seed"""
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
@@ -557,24 +603,22 @@ def setup_and_return_demofile(demofile_name, init_rope_state_segment, perturb_ra
     Globals.robot = Globals.env.GetRobots()[0]
 
     #Set up the simulation with the table (no rope yet)
-    new_xyz, _ = load_segment(demofile, init_rope_state_segment)
-    #table_height = new_xyz[:, 2].mean() - .02
-    table_height = new_xyz[:, 2].mean() - 0.17
+    setup_xyz = load_random_start_segment(demofile)
+    #table_height = setup_xyz[:, 2].mean() - .02
+    table_height = setup_xyz[:, 2].mean() - 0.17
     table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
     if animate:
         Globals.viewer = trajoptpy.GetViewer(Globals.env)
     Globals.env.LoadData(table_xml)
     Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
-
-    # create rope with optional pertubations
-
     move_sim_arms_to_side()
-    rope_nodes = rope_initialization.find_path_through_point_cloud(
-        new_xyz,
-        perturb_peak_dist=perturb_radius,
-        num_perturb_points=perturb_num_points)
+    new_xyz = sample_rope_state(demofile)
+    Globals.sim.create(new_xyz)
+    print "set viewpoint, then press 'p'"
+    Globals.viewer.Idle()
 
-    Globals.sim.create(rope_nodes)
+
+
     return demofile
 
 
@@ -756,9 +800,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("h5file", type=str, help="The HDF5 file that contains the recorded demonstration segments.")
 
-    parser.add_argument("fake_data_segment", type=str,
-                        help="This is the name of the segment that will be used to initialize the rope state.")
-
     parser.add_argument("--animation", action="store_true", help="Vizualize the robot and the simulation.")
 
     parser.add_argument("--select_manual", action="store_true",
@@ -786,7 +827,6 @@ def parse_arguments():
     args = parser.parse_args()
     print "args =", args
 
-    assert args.fake_data_segment is not None
     return args
 
 
@@ -795,11 +835,10 @@ def main():
     if args.random_seed is not None:
         Globals.random_seed = args.random_seed
     choose_segment = find_closest_manual if args.select_manual else auto_choose
-    rope_state = RopeState(args.fake_data_segment, args.sim_init_perturb_radius, args.sim_init_perturb_num_points)
     params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation,
                             max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment,
                             log_name=args.log)
-    result = do_single_random_task(rope_state, params)
+    result = do_single_random_task(params)
     print "Main results are", result
 
 
