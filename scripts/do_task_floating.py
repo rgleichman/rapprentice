@@ -20,7 +20,7 @@ If you're using fake data, don't update it.
 """
 from rapprentice import registration, colorize, \
     animate_traj, ros2rave, plotting_openrave, task_execution, \
-    planning, func_utils, resampling, ropesim, rope_initialization, clouds
+    planning, func_utils, resampling, rope_initialization, clouds, ropesim_floating
 from rapprentice import math_utils as mu
 
 import trajoptpy
@@ -39,10 +39,26 @@ import IPython as ipy
 #Don't use args, use globals
 #args = None
 
+
+L_POSTURES = {'side': np.array([[-0.98108876, -0.1846131 ,  0.0581623 ,  0.10118172],
+                                [-0.19076337,  0.97311662, -0.12904799,  0.68224057],
+                                [-0.03277475, -0.13770277, -0.98993119,  0.91652485],
+                                [ 0.        ,  0.        ,  0.        ,  1.        ]]) }
+
+R_POSTURES = {'side' : np.array([[-0.98108876,  0.1846131 ,  0.0581623 ,  0.10118172],
+                                 [ 0.19076337,  0.97311662,  0.12904799, -0.68224057],
+                                 [-0.03277475,  0.13770277, -0.98993119,  0.91652485],
+                                 [ 0.        ,  0.        ,  0.        ,  1.        ]]) }
+
+
+def move_sim_arms_to_side():
+    """Moves the simulated arms to the side."""
+    Globals.sim.grippers['r'].set_endeffector_transform(R_POSTURES['side'])
+    Globals.sim.grippers['l'].set_endeffector_transform(L_POSTURES['side'])
+    
+
 class Globals:
-    robot = None
     env = None
-    pr2 = None
     sim = None
     exec_log = None
     viewer = None
@@ -448,28 +464,7 @@ def make_table_xml(translation, extents):
     return xml
 
 
-PR2_L_POSTURES = dict(
-    untucked=[0.4, 1.0, 0.0, -2.05, 0.0, -0.1, 0.0],
-    tucked=[0.06, 1.25, 1.79, -1.68, -1.73, -0.10, -0.09],
-    up=[0.33, -0.35, 2.59, -0.15, 0.59, -1.41, -0.27],
-    side=[1.832, -0.332, 1.011, -1.437, 1.1, -2.106, 3.074]
-)
-
-
-def mirror_arm_joints(x):
-    "mirror image of joints (r->l or l->r)"
-    return np.r_[-x[0], x[1], -x[2], x[3], -x[4], x[5], -x[6]]
-
 ###################
-
-#TODO: Change for no body
-def move_sim_arms_to_side():
-    """Moves the simulated arms to the side."""
-    #SetDOFValues sets the joint angles. DOF = degree of feedom
-    #Move the arms back ("side" posture)
-    Globals.robot.SetDOFValues(PR2_L_POSTURES["side"], Globals.robot.GetManipulator("leftarm").GetArmIndices())
-    Globals.robot.SetDOFValues(mirror_arm_joints(PR2_L_POSTURES["side"]),
-                               Globals.robot.GetManipulator("rightarm").GetArmIndices())
 
 
 def do_single_random_task(task_params):
@@ -479,12 +474,11 @@ def do_single_random_task(task_params):
     task_params -- a task_params object
 
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
-
     """
     #Begin: setup local variables from parameters
-    filename = task_params.log_name
+    filename      = task_params.log_name
     demofile_name = task_params.demofile_name
-    animate = task_params.animate
+    animate       = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = task_params.choose_segment
     knot = task_params.knot
@@ -598,26 +592,23 @@ def setup_and_return_demofile(demofile_name, animate):
 
     demofile = h5py.File(demofile_name, 'r+')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
-    Globals.env.StopSimulation()
     
-    Globals.env.Load("robots/pr2-beta-static.zae")
-    Globals.robot = Globals.env.GetRobots()[0]
-
-    #Set up the simulation with the table (no rope yet)
-    setup_xyz = load_random_start_segment(demofile)
-    #table_height = setup_xyz[:, 2].mean() - .02
+    setup_xyz    = load_random_start_segment(demofile)
     table_height = setup_xyz[:, 2].mean() - 0.17
-    table_xml = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
-    if animate:
-        Globals.viewer = trajoptpy.GetViewer(Globals.env)
+    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
     Globals.env.LoadData(table_xml)
-    Globals.sim = ropesim.Simulation(Globals.env, Globals.robot)
+    
+    Globals.sim = ropesim_floating.FloatingGripperSimulation(Globals.env)
     move_sim_arms_to_side()
+    
     new_xyz = sample_rope_state(demofile)
     Globals.sim.create(new_xyz)
+    
+    if animate:
+        Globals.viewer = trajoptpy.GetViewer(Globals.env)
+    
     print "set viewpoint, then press 'p'"
     Globals.viewer.Idle()
-
     return demofile
 
 
@@ -643,7 +634,7 @@ def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=No
     move_sim_arms_to_side()
     #TODO -- Possibly refactor this section to be before the loop
 
-    new_xyz = Globals.sim.observe_cloud()
+    new_xyz           = Globals.sim.observe_cloud()
     new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
 
     print "loop_body only_original_segments", task_params.only_original_segments
@@ -667,7 +658,7 @@ def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=No
 
     print "new_xyz cloud size", new_xyz.shape
     print "old_xyz cloud size", old_xyz.shape
-    scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
+    scaled_old_xyz, src_params  = registration.unit_boxify(old_xyz)
     scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
     #TODO: get rid of g
     f, g = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
@@ -726,15 +717,15 @@ def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=No
             _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
             ####
 
-        ### Generate fullbody traj
+        ### Generate fullbody traj  << changed for floating grippers
         bodypart2traj = {}
         for (lr, old_joint_traj) in lr2oldtraj.items():
             manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
 
             old_joint_traj_rs = mu.interp2d(timesteps_rs, np.arange(len(old_joint_traj)), old_joint_traj)
 
-            ee_link_name = "%s_gripper_tool_frame" % lr
-            new_ee_traj = link2eetraj[ee_link_name][i_start: i_end + 1]
+            ee_link_name   = "%s_gripper_tool_frame" % lr
+            new_ee_traj    = link2eetraj[ee_link_name][i_start: i_end + 1]
             new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
             #Call the planner (eg. trajopt)
             with dhm_u.suppress_stdout():
