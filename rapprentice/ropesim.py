@@ -57,7 +57,7 @@ def retime_traj(robot, inds, traj, max_cart_vel=.02, upsample_time=.1):
 
 class Simulation(object):
     def __init__(self, env, robot):
-        self.env = env
+        self.env   = env
         self.robot = robot
         self.bt_env = None
         self.bt_robot = None

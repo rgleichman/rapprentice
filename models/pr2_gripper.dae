@@ -4,15 +4,15 @@
 		<contributor>
 			<authoring_tool>URDF Collada Writer</authoring_tool>
 		</contributor>
-		<created>2014-02-02T04:50:49.000000</created>
-		<modified>2014-02-02T04:50:49.000000</modified>
+		<created>2014-02-02T19:06:35.000000</created>
+		<modified>2014-02-02T19:06:35.000000</modified>
 		<unit/>
 		<up_axis>Z_UP</up_axis>
 	</asset>
 	<library_visual_scenes id="vscenes">
 		<visual_scene id="vscene" name="URDF Visual Scene">
-			<node id="visual0" name="pr2" sid="visual0">
-				<node id="vkmodel0_node11" name="l_wrist_roll_link" sid="node11">
+			<node id="visual0" name="pr2_gripper" sid="visual0">
+				<node id="vkmodel0_node11" name="wrist_roll_link" sid="node11">
 					<translate>0 0 0</translate>
 					<rotate>1 0 0 0</rotate>
 					<node id="vkmodel0_node7" name="l_gripper_palm_link" sid="node7">
@@ -477,7 +477,7 @@
 		</material>
 	</library_materials>
 	<library_kinematics_models id="kmodels">
-		<kinematics_model id="kmodel0" name="pr2">
+		<kinematics_model id="kmodel0" name="pr2_gripper">
 			<technique_common>
 				<joint name="l_gripper_joint" sid="l_gripper_joint">
 					<prismatic sid="axis0">
@@ -574,7 +574,7 @@
 						</limits>
 					</revolute>
 				</joint>
-				<link sid="l_wrist_roll_link" name="l_wrist_roll_link">
+				<link sid="wrist_roll_link" name="wrist_roll_link">
 					<attachment_full joint="kmodel0/l_gripper_palm_joint">
 						<translate>0 0 0</translate>
 						<rotate>1 0 0 0</rotate>
@@ -1135,7 +1135,7 @@
 	</library_articulated_systems>
 	<library_kinematics_scenes id="kscenes">
 		<kinematics_scene id="kscene" name="URDF Kinematics Scene">
-			<instance_articulated_system sid="robot0_motion_inst" url="#robot0_motion" name="pr2">
+			<instance_articulated_system sid="robot0_motion_inst" url="#robot0_motion" name="pr2_gripper">
 				<bind symbol="kscene_kmodel0_inst">
 					<param ref="robot0_motion/robot0_motion_kmodel0_inst"/>
 				</bind>
@@ -1230,7 +1230,7 @@
 		</physics_scene>
 	</library_physics_scenes>
 	<library_physics_models id="pmodels">
-		<physics_model id="pmodel0" name="pr2">
+		<physics_model id="pmodel0" name="pr2_gripper">
 			<rigid_body sid="rigid0" name="l_gripper_l_finger_link">
 				<technique_common>
 					<dynamic>true</dynamic>
@@ -1328,7 +1328,7 @@
 			<rigid_body sid="rigid10" name="l_gripper_tool_frame">
 				<technique_common/>
 			</rigid_body>
-			<rigid_body sid="rigid11" name="l_wrist_roll_link">
+			<rigid_body sid="rigid11" name="wrist_roll_link">
 				<technique_common/>
 			</rigid_body>
 		</physics_model>

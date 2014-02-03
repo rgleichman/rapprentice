@@ -591,7 +591,7 @@ def setup_log(filename):
             atexit.register(Globals.exec_log.close)
 
 #TODO  Consider encapsulating these intermedite return values in a class.
-def setup_and_return_demofile(demofile_name, animate):
+def setup_and_return_demofile(demofile_name, animate, floating_grippers=False):
     """For the simulation, this code runs before the main loop. It also sets the numpy random seed"""
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
@@ -599,6 +599,7 @@ def setup_and_return_demofile(demofile_name, animate):
     demofile = h5py.File(demofile_name, 'r+')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     Globals.env.StopSimulation()
+    
     Globals.env.Load("robots/pr2-beta-static.zae")
     Globals.robot = Globals.env.GetRobots()[0]
 
@@ -617,9 +618,8 @@ def setup_and_return_demofile(demofile_name, animate):
     print "set viewpoint, then press 'p'"
     Globals.viewer.Idle()
 
-
-
     return demofile
+
 
 
 def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=None):
