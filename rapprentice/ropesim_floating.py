@@ -1,11 +1,27 @@
 import bulletsimpy
 import numpy as np
-from rapprentice import math_utils, retiming
+from rapprentice import math_utils, retiming, resampling
 from defaults import models_dir
 import os.path as osp
 
 def transform(hmat, p):
     return hmat[:3,:3].dot(p) + hmat[:3,3]
+
+
+def retime_hmats(lhmats, rhmats, max_cart_vel=.02, upsample_time=.1):
+    """
+    retimes hmats (4x4 transforms) for left and right grippers
+    """
+    assert len(lhmats) == len(rhmats)
+    cart_traj = np.empty((len(rhmats), 6))
+    for i in xrange(len(lhmats)):
+        cart_traj[i,:3] = lhmats[:3,3]
+        cart_traj[i,3:] = rhmats[:3,3]
+    times    = retiming.retime_with_vel_limits(cart_traj, np.repeat(max_cart_vel, 6))
+    times_up = np.linspace(0, times[-1], times[-1]/upsample_time) if times[-1] > upsample_time else times
+    lhmats_up = resampling.interp_hmats(times_up, times, lhmats)
+    rhmats_up = resampling.interp_hmats(times_up, times, rhmats)
+    return (lhmats_up, rhmats_up)
 
 
 class FloatingGripper(object):
