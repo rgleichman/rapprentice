@@ -35,6 +35,7 @@ import random
 import copy
 import dhm_utils as dhm_u
 import IPython as ipy
+import pprint 
 
 #Don't use args, use globals
 #args = None
@@ -330,7 +331,6 @@ def find_closest_manual(demofile, _new_xyz, original=False):
     chosen_seg = seg_names[choice_ind]
     return chosen_seg
 
-
 def auto_choose(demofile, new_xyz, only_original_segments):
     """
     @param demofile:
@@ -374,6 +374,7 @@ def auto_choose(demofile, new_xyz, only_original_segments):
     print "best key = ", keys[ibest]
     print "best cost = ", costs[ibest]
     return keys[ibest]
+
 
 
 def arm_moved(joint_traj):
