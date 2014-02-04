@@ -72,19 +72,13 @@ class RopeState:
         self.perturb_radius = perturb_radius
         self.perturb_num_points = perturb_num_points
 
-
 class TaskParameters:
-    def __init__(self, demofile_name, knot, animate, max_steps_before_failure, choose_segment, log_name):
-        self.demofile_name = demofile_name
-        self.knot = knot
+    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5):
+        self.action_file = action_file
+        self.cloud_xyz = cloud_xyz
         self.animate = animate
+        self.warp_root = warp_root
         self.max_steps_before_failure = max_steps_before_failure
-        self.choose_segment = choose_segment
-        self.log_name = log_name
-        self.random_seed = None
-        self.add_to_hdf5 = False
-        #only_original_segments, if true, will only register with the original segments
-        self.only_original_segments = False
 
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
@@ -253,9 +247,9 @@ def exec_traj_sim(lr_traj, animate):
     l_transition_hmats, r_transition_hmats = ropesim_floating.retime_hmats([curr_ltf, lhmats_up[0]], [curr_rtf, rhmats_up[0]])
 
     animate_traj.animate_floating_traj(l_transition_hmats, r_transition_hmats,
-                                       Globals.sim, restore=False, pause=False,
+                                       Globals.sim, pause=False,
                                        callback=sim_callback, step_viewer=animate)
-    animate_traj.animate_floating_traj(lhmats_up, rhmats_up, Globals.sim, restore=False, pause=False,
+    animate_traj.animate_floating_traj(lhmats_up, rhmats_up, Globals.sim, pause=False,
                                        callback=sim_callback, step_viewer=animate)
     return True
 
@@ -338,6 +332,7 @@ def auto_choose(actionfile, new_xyz, nparallel=-1):
 
 
 def arm_moved(hmat_traj):
+    return True
     if len(hmat_traj) < 2:
         return False
     tts = hmat_traj[:,:3,3]
@@ -449,7 +444,7 @@ def do_single_task(task_params):
     knot = "any"
     
     ### Setup ###
-    demofile = setup_and_return_action_file(action_file, animate=animate)
+    demofile = setup_and_return_action_file(action_file, task_params.cloud_xyz, animate=animate)
 
     knot_results = []
     loop_results = []
@@ -461,7 +456,7 @@ def do_single_task(task_params):
         print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        loop_result = loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=i)
+        loop_result = loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=i)
         if loop_result is not None:
             knot_result = loop_result['found_knot']
             loop_results.append(loop_result)
@@ -524,7 +519,7 @@ def setup_log(filename):
             atexit.register(Globals.exec_log.close)
 
 #TODO  Consider encapsulating these intermedite return values in a class.
-def setup_and_return_action_file(action_file, animate):
+def setup_and_return_action_file(action_file, new_xyz, animate):
     """For the simulation, this code runs before the main loop. It also sets the numpy random seed"""
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
@@ -532,15 +527,13 @@ def setup_and_return_action_file(action_file, animate):
     demofile    = h5py.File(action_file, 'r+')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
-    setup_xyz    = load_random_start_segment(demofile)
-    table_height = setup_xyz[:, 2].mean() - 0.17
+    table_height = new_xyz[:, 2].mean() - 0.17
     table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
     Globals.env.LoadData(table_xml)
     
     Globals.sim = ropesim_floating.FloatingGripperSimulation(Globals.env)
     move_sim_arms_to_side()
     
-    new_xyz = sample_rope_state(demofile)
     Globals.sim.create(new_xyz)
     
     if animate:
@@ -611,11 +604,11 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     warped_ee_traj = {}
     #Transform the gripper trajectory here
     for lr in 'lr':
-        new_ee_traj        = f_root2new.transform_hmats(old_ee_traj[lr][:])
+        new_ee_traj        = f_warping.transform_hmats(old_ee_traj[lr][:])
         warped_ee_traj[lr] = new_ee_traj
 
         if plot:
-            handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
+            handles.append(Globals.env.drawlinestrip(old_ee_traj[lr][:, :3, 3], 2, (1, 0, 0, 1)))
             handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
 
 
@@ -648,7 +641,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
     new_xyz           = clouds.downsample(new_xyz_upsampled, 0.025)
 
-    segment = choose_segment(demofile, new_xyz)
+    segment = choose_segment(demofile, new_xyz, 7)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)
@@ -658,6 +651,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     cmat, warped_ee_traj, miniseg_starts, miniseg_ends, joint_traj = get_warped_trajectory(seg_info, new_xyz, demofile, 
                                                                                      warp_root=task_params.warp_root,
                                                                                      plot=task_params.animate)
+    success = True
     redprint("executing segment trajectory...")
 
     for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):

@@ -47,7 +47,7 @@ class FloatingGripper(object):
         self.robot.SetTransform(tf_base)
 
     def get_endeffector_transform(self):
-        return self.tt_link.GetTransform().dot(self.tt2ee)
+        return self.tt_link.GetTransform().dot(self.tf_tt2ee)
 
     def get_gripper_joint_value(self):
         return self.robot.GetDOFValues()[0]
@@ -66,7 +66,7 @@ class FloatingGripper(object):
 
         def on_inner_side(pt, finger_lr):
             finger = l_finger
-            closing_dir = [0, -1, 0]
+            closing_dir = np.array([0, -1, 0])
             
             local_inner_pt = np.array([0.234402, -0.299, 0])/20.
             if finger_lr == "r":

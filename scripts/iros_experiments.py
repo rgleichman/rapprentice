@@ -1,4 +1,4 @@
-import argparse, h5py, do_task, sys, dhm_utils, shutil
+import argparse, h5py, do_task, sys, dhm_utils, shutil, os
 
 import os.path as osp
 import IPython as ipy
@@ -8,8 +8,11 @@ from rapprentice import clouds
 from pdb import pm, set_trace
 
 try:
+    import do_task_floating
+    reload(do_task_floating)
     from do_task_floating import sample_rope_state, TaskParameters, do_single_task
 except:
+    raise
     print "do_task_floating import failed, using do_task"
     from do_task import sample_rope_state
     from do_task import TaskParameters_floating as TaskParameters
@@ -29,11 +32,13 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     """
     if not tree_sizes:
         tree_sizes = DEFAULT_TREE_SIZES[:]
-    assert len(taskfile) >= burn_in + max(tree_sizes)
+    taskf = h5py.File(task_fname, 'r')    
+    assert len(taskf) >= burn_in + max(tree_sizes)
+    taskf.close()
     task_ctr = 0
     setup_bootstrap_file(action_fname, bootstrap_fname)
     bootstrap_orig = osp.splitext(bootstrap_fname)[0] + '_orig.h5'
-    shutil.copyfile(bootstrap_fname, bootstap_orig)
+    shutil.copyfile(bootstrap_fname, bootstrap_orig)
     for i in range(burn_in):
         dhm_utils.one_l_print('doing burn in {}/{}'.format(i, burn_in))
         _ = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname))
@@ -57,7 +62,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
          this will append into that file and assumes that bootstrap_file has all the actions from actionfile in it         
     returns True if this is a knot-tie else returns False
     """
-    taskfile = h5py.File('task_fname', 'r')
+    taskfile = h5py.File(task_fname, 'r')
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
@@ -93,7 +98,7 @@ def setup_bootstrap_file(action_fname, bootstrap_fname):
         cmat = np.eye(cloud_xyz.shape[0])
         gripper_joints = dict(('{}_gripper_joint'.format(lr), seg_info['{}_gripper_joint'.format(lr)][:]) for lr in 'lr')
         create_bootstrap_item(outfile=bootfile, cloud_xyz=cloud_xyz, root_seg=seg_name, parent=seg_name,
-                              children=[], hmats=hmats, cmat=cmat, other_keys=gripper_joints,
+                              children=[], hmats=hmats, cmat=cmat, other_items=gripper_joints,
                               update_parent=False, seg_name=seg_name)
     actfile.close()
     assert check_bootstrap_file(bootstrap_fname, action_fname)
@@ -211,7 +216,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
         for i in range(num_examples):
             dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_examples))
             with dhm_utils.suppress_stdout():
-                taskfile[str(i)] = dt.sample_rope_state(actionfile, perturb_points=num_perturb_pts, 
+                taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts, 
                                                         min_rad=min_rad, max_rad=max_rad)
         print ''
     except:
@@ -235,4 +240,14 @@ def check_task_file(fname):
     f.close()
     return success
 
+
+def run_example_test():
+    boot_fname = 'data/test_bootstrapping.h5'
+    try:
+        os.remove(boot_fname)
+    except:
+        pass
+    act_fname = 'data/actions.h5'
+    task_fname = 'data/test_tasks.h5'
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 1, tree_sizes = [0])
 
