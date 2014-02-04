@@ -7,6 +7,13 @@ import numpy as np
 import h5py
 import IPython as ipy
 import os 
+import sys
+
+def one_l_print(string, pad=20):
+    for _ in range(pad): string += ' '
+    string += '\r'
+    sys.stdout.write(string)
+    sys.stdout.flush()
 
 # Define a context manager to suppress stdout
 class suppress_stdout(object):

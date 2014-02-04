@@ -39,6 +39,20 @@ import IPython as ipy
 #Don't use args, use globals
 #args = None
 
+################################
+## dummy fns to test floating ##
+################################
+class TaskParameters_floating:
+    def __init__(self, actionfile, cloud_xyz, animate=False, warp_root=False, max_seg_num=5):
+        self.actionfile = actionfile
+        self.cloud_xyz = init_xyz
+        self.animate = animate
+        self.warp_root = warp_root
+        self.max_seg_num = 5
+
+def do_single_task_floating(params):
+    pass
+
 class Globals:
     robot = None
     env = None
@@ -54,7 +68,6 @@ class RopeState:
         self.segment = segment
         self.perturb_radius = perturb_radius
         self.perturb_num_points = perturb_num_points
-
 
 class TaskParameters:
     def __init__(self, demofile_name, knot, animate, max_steps_before_failure, choose_segment, log_name):

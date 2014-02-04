@@ -1,4 +1,4 @@
-import argparse, h5py, do_task, sys, dhm_utils
+import argparse, h5py, do_task, sys, dhm_utils, shutil
 
 import os.path as osp
 import IPython as ipy
@@ -8,26 +8,77 @@ from rapprentice import clouds
 from pdb import pm, set_trace
 
 try:
-    import do_task_floating as dt
+    from do_task_floating import sample_rope_state, TaskParameters, do_single_task
 except:
     print "do_task_floating import failed, using do_task"
-    import do_task as dt
+    from do_task import sample_rope_state
+    from do_task import TaskParameters_floating as TaskParameters
+    from do_task import do_single_task_floating as do_single_task
+
 
 DS_SIZE = .025
-DEFAULT_TREE_SIZES = [30, 60, 90, 120]
+DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
-def run_example((taskfile, task_id, actionfile, bootstrap_file)):
+def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
+    """
+    generates a bootstrapping tree
+    taskfile has the training examples to use
+    bootstrap_fname will be used as the file to create all of the bootstrapping trees
+    tree_sizes controls the number of trees we want to build
+    results for tree size i will be in bootstrap_fname_i.h5
+    """
+    if not tree_sizes:
+        tree_sizes = DEFAULT_TREE_SIZES[:]
+    assert len(taskfile) >= burn_in + max(tree_sizes)
+    task_ctr = 0
+    setup_bootstrap_file(action_fname, bootstrap_fname)
+    bootstrap_orig = osp.splitext(bootstrap_fname)[0] + '_orig.h5'
+    shutil.copyfile(bootstrap_fname, bootstap_orig)
+    for i in range(burn_in):
+        dhm_utils.one_l_print('doing burn in {}/{}'.format(i, burn_in))
+        _ = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname))
+        task_ctr += 1                        
+    for i in range(max(tree_sizes)):
+        dhm_utils.one_l_print('doing bootstrapping {}/{}'.format(i, max(tree_sizes)))
+        if i in tree_sizes:
+            bootrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
+            shutil.copyfile(bootstrap_fname, bootstap_i_fname)
+        _ = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
+    return True
+
+def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     """
     runs a knot-tie attempt for task_id (taken from taskfile
     possible actions are the expert demonstrations in actionfile
-        assumed to be an open h5 file in r or r+ mode
-    if bootstrap_file == None, then it won't save anything to that file
-    set bootstrap_file to add the results from the trial run to that file
-         this is assumed to be open in r+ mode
+         assumed to be openable in 'r' mode
+    if bootstrap_fname == '', then it won't save anything to that file
+    set bootstrap_fname to add the results from the trial run to that file
+         this is assumed to already be initialized
          this will append into that file and assumes that bootstrap_file has all the actions from actionfile in it         
     returns True if this is a knot-tie else returns False
     """
-    raise NotImplementedError
+    taskfile = h5py.File('task_fname', 'r')
+    init_xyz = taskfile[str(task_id)][:]
+    taskfile.close()
+    actfile = h5py.File(action_fname, 'r')
+    task_params = TaskParameters(actfile, init_xyz, animate=True, warp_root=False) # currently set to test that correspondence trick does what we want
+    actfile.close()
+    task_results = do_single_task(task_params)
+    if task_results['success'] and bootstrap_fname:
+        try:
+            bootf = h5py.File(bootstrap_fname, 'r+')
+            for seg_values in task_results['seg_info']:
+                cloud_xyz, parent, hmats, cmat = [seg_values[k] for k in ['cloud_xyz', 'parent', 'hmats', 'cmat']]
+                children = []
+                root_seg = str(bootf[str(parent)]['root_seg'][()])
+                create_bootstrap_item(bootf, cloud_xyz, root_seg, parent, children, hmats, cmat)
+        except:
+            print 'encountered exception', sys.exc_info()
+            print 'warning, bootstrap file may be malformed'
+            raise
+        finally:
+            bootf.close()
+    return task_results['success']
 
 def setup_bootstrap_file(action_fname, bootstrap_fname):
     """
@@ -50,7 +101,7 @@ def setup_bootstrap_file(action_fname, bootstrap_fname):
     return bootfile
 
 def create_bootstrap_item(outfile, cloud_xyz, root_seg, parent, children, hmats, 
-                          cmat, other_keys = None, update_parent=True, seg_name=None):
+                          cmat, other_items = None, update_parent=True, seg_name=None):
     if not seg_name:
         seg_name = str(len(outfile))
     assert seg_name not in outfile, 'created duplicate segment in bootstrap file'
@@ -78,8 +129,8 @@ def create_bootstrap_item(outfile, cloud_xyz, root_seg, parent, children, hmats,
         if not parent_children: parent_children = []
         parent_children.append(seg_name)
         outfile[parent]['children'] = parent_children
-    if other_keys:
-        for k, v in other_keys.iteritems():
+    if other_items:
+        for k, v in other_items.iteritems():
             g[k] = v
     outfile.flush()
     return seg_name
@@ -143,17 +194,6 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
         raise
     return success
 
-def run_bootstrap(taskfile, actionfile, bootstrap_fname, burn_in = 40, tree_sizes = None):
-    """
-    generates a bootstrapping tree
-    taskfile has the training examples to use
-    bootstrap_fname will be used as the 
-    """
-    if not tree_sizes:
-        tree_sizes = DEFAULT_TREE_SIZES[:]
-    assert len(taskfile) >= burn_in + max(tree_sizes)
-    raise NotImplementedError
-
 def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=7):
     """
     draw num_examples states from the initial state distribution defined by
@@ -170,8 +210,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
     actionfile = h5py.File(actionfname, 'r')
     try:
         for i in range(num_examples):
-            sys.stdout.write('Creating State {}/{}           \r'.format(i, num_examples))
-            sys.stdout.flush()
+            dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_examples))
             with dhm_utils.suppress_stdout():
                 taskfile[str(i)] = dt.sample_rope_state(actionfile, perturb_points=num_perturb_pts, 
                                                         min_rad=min_rad, max_rad=max_rad)
