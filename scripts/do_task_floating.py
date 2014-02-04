@@ -471,7 +471,7 @@ def do_single_task(task_params):
 
     Arguments:
     task_params -- a task_params object
-    task_params.action_file : h5 file for demonstration (this might the filename or the h5py object). This has the
+    task_params.action_file : h5 file for demonstration. It is the filename. This has the
         bootstrap trees.
     task_params.start_state : the initial point_cloud
     task_params.animate : boolean
@@ -483,8 +483,8 @@ def do_single_task(task_params):
     right grippers, 'cloud_xyz': the new pointcloud, 'cmat': the correspondence matrix or list of segments}
     """
     #Begin: setup local variables from parameters
-    filename      = task_params.log_name
-    demofile_name = task_params.demofile_name
+    log_name      = task_params.log_name
+    action_file = task_params.action_file
     animate       = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = task_params.choose_segment
@@ -493,8 +493,8 @@ def do_single_task(task_params):
 
     ### Setup ###
     set_random_seed(task_params)
-    setup_log(filename)
-    demofile = setup_and_return_demofile(demofile_name, animate=animate)
+    setup_log(log_name)
+    demofile = setup_and_return_action_file(action_file, animate=animate)
 
     knot_results = []
     loop_results = []
@@ -523,7 +523,10 @@ def do_single_task(task_params):
             break
         i += 1
     demofile.close()
-    return (knot_results, [result['segment'] for result in loop_results])
+    #TODO: seg_info_list
+    seg_info_list = [loop_result['seg_info'] for loop_result in loop_results]
+    return {'success':knot_results[-1], 'seg_info':seg_info_list}
+    #return (knot_results, [result['segment'] for result in loop_results])
 
 
 def add_loop_results_to_hdf5(demofile, loop_results):
@@ -572,12 +575,12 @@ def setup_log(filename):
             atexit.register(Globals.exec_log.close)
 
 #TODO  Consider encapsulating these intermedite return values in a class.
-def setup_and_return_demofile(demofile_name, animate):
+def setup_and_return_action_file(action_file, animate):
     """For the simulation, this code runs before the main loop. It also sets the numpy random seed"""
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
 
-    demofile = h5py.File(demofile_name, 'r+')
+    demofile = h5py.File(action_file, 'r+')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
     setup_xyz    = load_random_start_segment(demofile)
@@ -610,7 +613,13 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
         new_xyz is the new pointcloud
         task_params is used for the only_original_segments argument
 
-    return None or {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}
+    seg_info is of the form:
+    {'parent': The name of the segment from the action file that was chosen,
+    'hmats': trajectories for the left and right grippers,
+    'cloud_xyz': the new pointcloud,
+    'cmat': the correspondence matrix or list of segments}
+    #return {'found_knot': found_knot, 'seg_info': {'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}}
+    return {'found_knot': found_knot, 'seg_info': seg_info}
     """
     #TODO -- Return the new trajectory and state info to be used for bootstrapping (knot_success, new_xyz, link2eetraj,
     #TODO segment)
@@ -764,7 +773,9 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
         redprint("Not a knot. Continuing.")
 
     redprint("Segment %s result: %s" % (segment, success))
-    return {'found_knot': found_knot, 'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz_upsampled}
+    #TODO: add the cmat to the seg_info_hash
+    seg_info_hash = {'parent': segment, 'hmats': link2eetraj, 'cloud_xyz': new_xyz_upsampled, 'cmat': None}
+    return {'found_knot': found_knot, 'seg_info':seg_info_hash}
 
 
 def parse_arguments():
