@@ -1,67 +1,104 @@
 import bulletsimpy
 import numpy as np
-from rapprentice import math_utils, retiming
+from rapprentice import math_utils, retiming, resampling
+from defaults import models_dir
+import os.path as osp
 
 def transform(hmat, p):
     return hmat[:3,:3].dot(p) + hmat[:3,3]
 
-def in_grasp_region(robot, lr, pt):
-    tol = .00
 
-    manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
-    manip = robot.GetManipulator(manip_name)
-    l_finger = robot.GetLink("%s_gripper_l_finger_tip_link"%lr)
-    r_finger = robot.GetLink("%s_gripper_r_finger_tip_link"%lr)
-
-    def on_inner_side(pt, finger_lr):
-        finger = l_finger
-        closing_dir = np.cross(manip.GetLocalToolDirection(), [-1, 0, 0])
-        local_inner_pt = np.array([0.234402, -0.299, 0])/20.
-        if finger_lr == "r":
-            finger = r_finger
-            closing_dir *= -1
-            local_inner_pt[1] *= -1
-        inner_pt = transform(finger.GetTransform(), local_inner_pt)
-        return manip.GetTransform()[:3,:3].dot(closing_dir).dot(pt - inner_pt) > 0
-
-    # check that pt is behind the gripper tip
-    pt_local = transform(np.linalg.inv(manip.GetTransform()), pt)
-    if pt_local[2] > .03 + tol:
-        return False
-
-    # check that pt is within the finger width
-    if abs(pt_local[0]) > .01 + tol:
-        return False
-
-    # check that pt is between the fingers
-    if not on_inner_side(pt, "l") or not on_inner_side(pt, "r"):
-        return False
-
-    return True
-
-def retime_traj(robot, inds, traj, max_cart_vel=.02, upsample_time=.1):
-    """retime a trajectory so that it executes slowly enough for the simulation"""
-    cart_traj = np.empty((len(traj), 6))
-    leftarm, rightarm = robot.GetManipulator("leftarm"), robot.GetManipulator("rightarm")
-    with robot:
-        for i in range(len(traj)):
-            robot.SetDOFValues(traj[i], inds)
-            cart_traj[i,:3] = leftarm.GetTransform()[:3,3]
-            cart_traj[i,3:] = rightarm.GetTransform()[:3,3]
-
-    times = retiming.retime_with_vel_limits(cart_traj, np.repeat(max_cart_vel, 6))
+def retime_hmats(lhmats, rhmats, max_cart_vel=.02, upsample_time=.1):
+    """
+    retimes hmats (4x4 transforms) for left and right grippers
+    """
+    assert len(lhmats) == len(rhmats)
+    cart_traj = np.empty((len(rhmats), 6))
+    for i in xrange(len(lhmats)):
+        cart_traj[i,:3] = lhmats[:3,3]
+        cart_traj[i,3:] = rhmats[:3,3]
+    times    = retiming.retime_with_vel_limits(cart_traj, np.repeat(max_cart_vel, 6))
     times_up = np.linspace(0, times[-1], times[-1]/upsample_time) if times[-1] > upsample_time else times
-    traj_up = math_utils.interp2d(times_up, times, traj)
-    return traj_up
+    lhmats_up = resampling.interp_hmats(times_up, times, lhmats)
+    rhmats_up = resampling.interp_hmats(times_up, times, rhmats)
+    return (lhmats_up, rhmats_up)
 
 
-class Simulation(object):
-    def __init__(self, env, robot):
-        self.env   = env
-        self.robot = robot
-        self.bt_env = None
+class FloatingGripper(object):
+    def __init__(self, env, init_tf):
+        gripper_fname = osp.join(models_dir, 'pr2_gripper.dae')
+        self.env.Load(gripper_fname)
+        self.robot   = self.env.GetRobots()[-1]
+        self.tt_link = self.robot.GetLinks()[-1]
+        self.robot.SetTransform(init_tf)
+
+        ## conversion transforms:
+        self.tf_tt2base = np.linalg.inv(self.tt_link.GetTransform()).dot(init_tf)
+        self.tf_ee2tt   = np.array([[  0,   0,  -1,   0],
+                                    [  0,   1,   0,   0],
+                                    [  1,   0,   0,   0],
+                                    [  0,   0,   0,   1]])
+        self.tf_tt2ee   = np.linalg.inv(self.tf_ee2tt)
+        self.tf_ee2base = self.tf_ee2tt.dot(self.tf_tt2base)
+
+    def set_endeffector_transform(self, tf_ee):
+        tf_base = tf_ee.dot(self.tf_ee2base)
+        self.robot.SetTransform(tf_base)
+
+    def get_endeffector_transform(self):
+        return self.tt_link.GetTransform().dot(self.tt2ee)
+
+    def get_gripper_joint(self):
+        return self.robot.GetDOFValues()[0]
+    
+    def set_gripper_joint(self, jval):
+        self.robot.SetDOFValues([jval], [0])
+        
+    def in_grasp_region(self, pt):
+        """
+        checks if the point PT is in the graspable region of this gripper.
+        """
+        tol = .00
+    
+        l_finger = self.robot.GetLink("l_gripper_l_finger_tip_link")
+        r_finger = self.robot.GetLink("l_gripper_r_finger_tip_link")
+
+        def on_inner_side(pt, finger_lr):
+            finger = l_finger
+            closing_dir = [0, -1, 0]
+            
+            local_inner_pt = np.array([0.234402, -0.299, 0])/20.
+            if finger_lr == "r":
+                finger = r_finger
+                closing_dir *= -1
+                local_inner_pt[1] *= -1
+            inner_pt = transform(finger.GetTransform(), local_inner_pt)
+            return self.get_endeffector_transform()[:3,:3].dot(closing_dir).dot(pt - inner_pt) > 0
+    
+        # check that pt is behind the gripper tip
+        pt_local = transform(np.linalg.inv(self.get_endeffector_transform()), pt)
+        if pt_local[2] > .03 + tol:
+            return False
+    
+        # check that pt is within the finger width
+        if abs(pt_local[0]) > .01 + tol:
+            return False
+    
+        # check that pt is between the fingers
+        if not on_inner_side(pt, "l") or not on_inner_side(pt, "r"):
+            return False
+    
+        return True
+
+
+class FloatingGripperSimulation(object):
+    def __init__(self, env):
+        self.env      = env
+        self.grippers = None
+        self.__init_grippers__()
+        self.bt_env   = None
         self.bt_robot = None
-        self.rope = None
+        self.rope     = None
         self.constraints = {"l": [], "r": []}
 
         self.rope_params = bulletsimpy.CapsuleRopeParams()
@@ -84,21 +121,32 @@ class Simulation(object):
         #This could be the tolerance for error when the joint is at or near the joint limit
         self.rope_params.linStopErp = .2
 
+    def __init_grippers__(self):
+        """
+        load the gripper models
+        """
+        rtf, ltf   = np.eye(4)
+        rtf[0:3,3] = [0.5, 0,1]
+        ltf[0:3,3] = [-0.5,0,1]
+
+        self.grippers = {'l' : FloatingGripper(self.env, ltf),
+                         'r' : FloatingGripper(self.env, rtf)}
+
     def create(self, rope_pts):
         bulletsimpy.sim_params.friction = 1
-        self.bt_env = bulletsimpy.BulletEnvironment(self.env, [])
+        self.bt_env   = bulletsimpy.BulletEnvironment(self.env, [])
         self.bt_env.SetGravity([0, 0, -9.8])
-        self.bt_robot = self.bt_env.GetObjectByName(self.robot.GetName())
-        self.rope = bulletsimpy.CapsuleRope(self.bt_env, 'rope', rope_pts, self.rope_params)
+        self.bt_grippers = {lr : self.bt_env.GetObjectByName(self.grippers[lr].robot.GetName()) for lr in 'lr'}
+        self.rope        = bulletsimpy.CapsuleRope(self.bt_env, 'rope', rope_pts, self.rope_params)
 
         # self.rope.UpdateRave()
         # self.env.UpdatePublishedBodies()
         # trajoptpy.GetViewer(self.env).Idle()
-
         self.settle()
 
     def step(self):
-        self.bt_robot.UpdateBullet()
+        for lr in 'lr':
+            self.bt_grippers[lr].UpdateBullet()
         self.bt_env.Step(.01, 200, .005)
         self.rope.UpdateRave()
         self.env.UpdatePublishedBodies()
@@ -136,15 +184,15 @@ class Simulation(object):
         #GetControlPoints seems to return some sort of list of the verticies (bend points) of the rope).
         nodes, ctl_pts = self.rope.GetNodes(), self.rope.GetControlPoints()
 
-        graspable_nodes = np.array([in_grasp_region(self.robot, lr, n) for n in nodes])
-        graspable_ctl_pts = np.array([in_grasp_region(self.robot, lr, n) for n in ctl_pts])
+        graspable_nodes = np.array([self.grippers[lr].in_grasp_region(n) for n in nodes])
+        graspable_ctl_pts = np.array([self.grippers[lr].in_grasp_region(n) for n in ctl_pts])
         graspable_inds = np.flatnonzero(np.logical_or(graspable_nodes, np.logical_or(graspable_ctl_pts[:-1], graspable_ctl_pts[1:])))
         #print 'graspable inds for %s: %s' % (lr, str(graspable_inds))
         if len(graspable_inds) == 0:
             #No part close enough to the gripper to grab, so return False.
             return False
 
-        robot_link = self.robot.GetLink("%s_gripper_l_finger_tip_link"%lr)
+        robot_link = self.grippers[lr].robot.GetLink("l_gripper_l_finger_tip_link")
         rope_links = self.rope.GetKinBody().GetLinks()
         for i_node in graspable_inds:
             for i_cnt in range(max(0, i_node-1), min(len(nodes), i_node+2)):
