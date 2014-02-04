@@ -54,8 +54,8 @@ R_POSTURES = {'side' : np.array([[-0.98108876,  0.1846131 ,  0.0581623 ,  0.1011
 
 def move_sim_arms_to_side():
     """Moves the simulated arms to the side."""
-    Globals.sim.grippers['r'].set_endeffector_transform(R_POSTURES['side'])
-    Globals.sim.grippers['l'].set_endeffector_transform(L_POSTURES['side'])
+    Globals.sim.grippers['r'].set_toolframe_transform(R_POSTURES['side'])
+    Globals.sim.grippers['l'].set_toolframe_transform(L_POSTURES['side'])
     
 
 class Globals:
@@ -241,8 +241,8 @@ def exec_traj_sim(lr_traj, animate):
     lhmats_up, rhmats_up = ropesim_floating.retime_hmats(lr_traj['l'], lr_traj['r'])
 
     # in simulation mode, we must make sure to gradually move to the new starting position
-    curr_rtf  = Globals.sim.grippers['r'].get_endeffector_transform()
-    curr_ltf  = Globals.sim.grippers['l'].get_endeffector_transform()
+    curr_rtf  = Globals.sim.grippers['r'].get_toolframe_transform()
+    curr_ltf  = Globals.sim.grippers['l'].get_toolframe_transform()
    
     l_transition_hmats, r_transition_hmats = ropesim_floating.retime_hmats([curr_ltf, lhmats_up[0]], [curr_rtf, rhmats_up[0]])
 
@@ -528,7 +528,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
     table_height = new_xyz[:, 2].mean() - 0.17
-    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[10, 10, .01])
+    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[1, 1, .01])
     Globals.env.LoadData(table_xml)
     
     Globals.sim = ropesim_floating.FloatingGripperSimulation(Globals.env)

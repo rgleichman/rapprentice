@@ -18,7 +18,7 @@ def animate_floating_traj(lhmats, rhmats, sim, pause=True, step_viewer=True, cal
     if step_viewer or pause: viewer = trajoptpy.GetViewer(sim.env)
     for i in xrange(len(lhmats)):
         if callback is not None: callback(i)
-        sim.grippers['r'].set_endeffector_transform(rhmats[i])
-        sim.grippers['l'].set_endeffector_transform(lhmats[i])
+        sim.grippers['r'].set_toolframe_transform(rhmats[i])
+        sim.grippers['l'].set_toolframe_transform(lhmats[i])
         if pause: viewer.Idle()
         elif step_viewer and not i%20: viewer.Step()

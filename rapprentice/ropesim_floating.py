@@ -42,12 +42,15 @@ class FloatingGripper(object):
         self.tf_tt2ee   = np.linalg.inv(self.tf_ee2tt)
         self.tf_ee2base = self.tf_ee2tt.dot(self.tf_tt2base)
 
-    def set_endeffector_transform(self, tf_ee):
+    def set_toolframe_transform(self, tf_ee):
         tf_base = tf_ee.dot(self.tf_tt2base)
         self.robot.SetTransform(tf_base)
 
-    def get_endeffector_transform(self):
+    def get_toolframe_transform(self):
         return self.tt_link.GetTransform()#.dot(self.tf_tt2ee)
+
+    def get_endeffector_transform(self):
+        return self.tt_link.GetTransform().dot(self.tf_tt2ee)
 
     def get_gripper_joint_value(self):
         return self.robot.GetDOFValues()[0]
@@ -107,14 +110,14 @@ class FloatingGripperSimulation(object):
         self.rope_params.radius = 0.005
         #angStiffness: a rope with a higher angular stifness seems to have more resistance to bending.
         #orig self.rope_params.angStiffness = .1
-        self.rope_params.angStiffness = 17
+        self.rope_params.angStiffness = .1
         #A higher angular damping causes the ropes joints to change angle slower.
         #This can cause the rope to be dragged at an angle by the arm in the air, instead of falling straight.
         #orig self.rope_params.angDamping = 1
-        self.rope_params.angDamping = .1
+        self.rope_params.angDamping = 1
         #orig self.rope_params.linDamping = .75
         #Not sure what linear damping is, but it seems to limit the linear accelertion of centers of masses.
-        self.rope_params.linDamping = 0
+        self.rope_params.linDamping = .75
         #Angular limit seems to be the minimum angle at which the rope joints can bend.
         #A higher angular limit increases the minimum radius of curvature of the rope.
         self.rope_params.angLimit = .4
@@ -212,7 +215,6 @@ class FloatingGripperSimulation(object):
                     }
                 })
                 self.constraints[lr].append(cnt)
-
         return True
 
     def release_rope(self, lr):

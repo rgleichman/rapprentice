@@ -136,6 +136,12 @@ def interp_quats(newtimes, oldtimes, oldquats):
 
 def interp_hmats(newtimes, oldtimes, oldhmats):
     oldposes = openravepy.poseFromMatrices(oldhmats)
+    for i in xrange(1, len(oldposes)):
+        qp = oldposes[i-1,0:4]
+        qc = oldposes[i,0:4]
+        if np.linalg.norm(qp + qc) < np.linalg.norm(qp-qc):
+            oldposes[i,0:4] = -qc
+
     newposes = np.empty((len(newtimes), 7))
     newposes[:,4:7] = mu.interp2d(newtimes, oldtimes, oldposes[:,4:7])
     newposes[:,0:4] = interp_quats(newtimes, oldtimes, oldposes[:,0:4])
