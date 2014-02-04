@@ -15,8 +15,8 @@ def retime_hmats(lhmats, rhmats, max_cart_vel=.02, upsample_time=.1):
     assert len(lhmats) == len(rhmats)
     cart_traj = np.empty((len(rhmats), 6))
     for i in xrange(len(lhmats)):
-        cart_traj[i,:3] = lhmats[:3,3]
-        cart_traj[i,3:] = rhmats[:3,3]
+        cart_traj[i,:3] = lhmats[i][:3,3]
+        cart_traj[i,3:] = rhmats[i][:3,3]
     times    = retiming.retime_with_vel_limits(cart_traj, np.repeat(max_cart_vel, 6))
     times_up = np.linspace(0, times[-1], times[-1]/upsample_time) if times[-1] > upsample_time else times
     lhmats_up = resampling.interp_hmats(times_up, times, lhmats)

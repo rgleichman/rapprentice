@@ -240,36 +240,23 @@ def unwrap_in_place(t):
         raise NotImplementedError
 
 
-def exec_traj_sim(bodypart2traj, animate):
+def exec_traj_sim(lr_traj, animate):
     def sim_callback(i):
         Globals.sim.step()
 
-    dof_inds = []
-    trajs    = []
-    for (part_name, traj) in bodypart2traj.items():
-        manip_name = {"larm": "leftarm", "rarm": "rightarm"}[part_name]
-        dof_inds.extend(Globals.robot.GetManipulator(manip_name).GetArmIndices())
-        trajs.append(traj)
-    full_traj = np.concatenate(trajs, axis=1)
-    Globals.robot.SetActiveDOFs(dof_inds)
-
-    # make the trajectory slow enough for the simulation
-    #orig full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj)
-    full_traj = ropesim.retime_traj(Globals.robot, dof_inds, full_traj, max_cart_vel=.01)
+    lhmats_up, rhmats_up = ropesim_floating.retime_hmats(lr_traj['l'], lr_traj['r'])
 
     # in simulation mode, we must make sure to gradually move to the new starting position
-    curr_vals = Globals.robot.GetActiveDOFValues()
-    transition_traj = np.r_[[curr_vals], [full_traj[0]]]
-    unwrap_in_place(transition_traj)
-    transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
-    #transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.005)
-    animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=False,
-                              callback=sim_callback, step_viewer=animate)
-    full_traj[0] = transition_traj[-1]
-    unwrap_in_place(full_traj)
+    curr_rtf  = Globals.sim.grippers['r'].get_endeffector_transform()
+    curr_ltf  = Globals.sim.grippers['l'].get_endeffector_transform()
+   
+    l_transition_hmats, r_transition_hmats = ropesim_floating.retime_hmats([curr_ltf, lhmats_up[0]], [curr_rtf, rhmats_up[0]])
 
-    animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=False,
-                              callback=sim_callback, step_viewer=animate)
+    animate_traj.animate_floating_traj(l_transition_hmats, r_transition_hmats,
+                                       Globals.sim, restore=False, pause=False,
+                                       callback=sim_callback, step_viewer=animate)
+    animate_traj.animate_floating_traj(lhmats_up, rhmats_up, Globals.sim, restore=False, pause=False,
+                                       callback=sim_callback, step_viewer=animate)
     return True
 
 
@@ -438,12 +425,13 @@ def make_table_xml(translation, extents):
 
 
 def do_single_task(task_params):
-    """Do one task.
+    """
+    Do one task.
 
     Arguments:
     task_params -- a task_params object
     task_params.action_file : h5 file for demonstration. It is the filename. This has the
-        bootstrap trees.
+                              bootstrap trees.
     task_params.start_state : the initial point_cloud
     task_params.animate : boolean
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
@@ -454,17 +442,13 @@ def do_single_task(task_params):
     right grippers, 'cloud_xyz': the new pointcloud, 'cmat': the correspondence matrix or list of segments}
     """
     #Begin: setup local variables from parameters
-    log_name      = task_params.log_name
-    action_file = task_params.action_file
+    action_file   = task_params.action_file
     animate       = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
-    choose_segment = task_params.choose_segment
-    knot = task_params.knot
-    #End
-
+    choose_segment = auto_choose
+    knot = "any"
+    
     ### Setup ###
-    set_random_seed(task_params)
-    setup_log(log_name)
     demofile = setup_and_return_action_file(action_file, animate=animate)
 
     knot_results = []
@@ -486,18 +470,12 @@ def do_single_task(task_params):
         redprint('knot results:\t' + str(knot_result))
         knot_results.append(knot_result)
         #Break if it either sucessfully ties a knot (knot_result is True), or the main loop wants to exit (knot_result is None)
-        if knot_result:
-            if task_params.add_to_hdf5:
-                add_loop_results_to_hdf5(demofile, loop_results)
-            break
-        if knot_result is None:
+        if knot_result or knot_result==None:
             break
         i += 1
     demofile.close()
-    #TODO: seg_info_list
     seg_info_list = [loop_result['seg_info'] for loop_result in loop_results]
     return {'success':knot_results[-1], 'seg_info':seg_info_list}
-    #return (knot_results, [result['segment'] for result in loop_results])
 
 
 def add_loop_results_to_hdf5(demofile, loop_results):
@@ -551,7 +529,7 @@ def setup_and_return_action_file(action_file, animate):
     if Globals.random_seed is not None:
         np.random.seed(Globals.random_seed)
 
-    demofile = h5py.File(action_file, 'r+')
+    demofile    = h5py.File(action_file, 'r+')
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
     setup_xyz    = load_random_start_segment(demofile)
@@ -773,7 +751,7 @@ def main():
     params = TaskParameters(args.h5file, args.sim_desired_knot_name, animate=args.animation,
                             max_steps_before_failure=args.max_steps_before_failure, choose_segment=choose_segment,
                             log_name=args.log)
-    result = do_single_random_task(params)
+    result = do_single_task(params)
     print "Main results are", result
 
 
