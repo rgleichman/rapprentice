@@ -467,13 +467,21 @@ def make_table_xml(translation, extents):
 ###################
 
 
-def do_single_random_task(task_params):
+def do_single_task(task_params):
     """Do one task.
 
     Arguments:
     task_params -- a task_params object
-
+    task_params.action_file : h5 file for demonstration (this might the filename or the h5py object). This has the
+        bootstrap trees.
+    task_params.start_state : the initial point_cloud
+    task_params.animate : boolean
     If task_parms.max_steps_before failure is -1, then it loops until the knot is detected.
+
+    Return {'success': <boolean>, 'seg_info':[{ ...}, {...}, ...]}
+    seg_info hashes are of the form
+    {'parent': The name of the segment from the action file that was chosen, 'hmats': trajectories for the left and
+    right grippers, 'cloud_xyz': the new pointcloud, 'cmat': the correspondence matrix or list of segments}
     """
     #Begin: setup local variables from parameters
     filename      = task_params.log_name
@@ -489,26 +497,6 @@ def do_single_random_task(task_params):
     setup_log(filename)
     demofile = setup_and_return_demofile(demofile_name, animate=animate)
 
-    ###TODO: remove
-    #new_xyz = Globals.sim.observe_cloud(upsample=120)
-    #parent_name = 'demo13-seg00'
-    #parent = demofile[parent_name]
-    #child_name = '/' + parent_name + '_sim'
-    ##Make a copy of the parent
-    ##TODO: figure out which args are necessary
-    ##parent.copy(parent, child_name, shallow=False, expand_soft=True, expand_external=True, expand_refs=True)
-    #parent.copy(parent, child_name)
-    #child = demofile[child_name]
-    ##Now update the child with loop_result
-    #del child["cloud_xyz"]
-    #child["cloud_xyz"] = new_xyz
-    #child["derived"] = True
-    #demofile.flush()
-    #return
-    #assert False
-    ##TODO
-    #TODO: remove
-    #task_params.add_to_hdf5 = True
     knot_results = []
     loop_results = []
     i = 0
