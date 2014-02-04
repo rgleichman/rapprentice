@@ -39,9 +39,9 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     setup_bootstrap_file(action_fname, bootstrap_fname)
     bootstrap_orig = osp.splitext(bootstrap_fname)[0] + '_orig.h5'
     shutil.copyfile(bootstrap_fname, bootstrap_orig)
-    for i in range(2, burn_in):
+    for i in range(burn_in):
         dhm_utils.one_l_print('doing burn in {}/{}'.format(i, burn_in))
-        _ = run_example((task_fname, str(i), bootstrap_orig, bootstrap_fname))
+        _ = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname))
         task_ctr += 1                        
     for i in range(max(tree_sizes)):
         dhm_utils.one_l_print('doing bootstrapping {}/{}'.format(i, max(tree_sizes)))

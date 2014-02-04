@@ -167,8 +167,8 @@ def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15):
     rope_nodes = rope_initialization.find_path_through_point_cloud( new_xyz,
                                                                     perturb_peak_dist=perturb_radius,
                                                                     num_perturb_points=perturb_points)
-    rand_theta = np.pi*(np.random.rand() - 0.5)
-    # rand_theta = np.random.randn()
+    #rand_theta = np.pi*(np.random.rand() - 0.5)
+    rand_theta = np.random.randn()
     rope_nodes = rotate_about_median(rope_nodes, rand_theta)
     r_trans = np.r_[np.random.multivariate_normal([0, 0], np.eye(2)), [0]]
     rope_nodes = rope_nodes + r_trans    
