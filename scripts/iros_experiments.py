@@ -1,4 +1,4 @@
-import argparse, h5py, do_task, sys
+import argparse, h5py, do_task, sys, dhm_utils
 
 import os.path as osp
 import IPython as ipy
@@ -6,6 +6,12 @@ import numpy as np
 
 from rapprentice import clouds
 from pdb import pm, set_trace
+
+try:
+    import do_task_floating as dt
+except:
+    print "do_task_floating import failed, using do_task"
+    import do_task as dt
 
 DS_SIZE = .025
 DEFAULT_TREE_SIZES = [30, 60, 90, 120]
@@ -148,19 +154,47 @@ def run_bootstrap(taskfile, actionfile, bootstrap_fname, burn_in = 40, tree_size
     assert len(taskfile) >= burn_in + max(tree_sizes)
     raise NotImplementedError
 
-def gen_task_file(fname, num_examples, perturb_bounds, num_perturb_pts):
+def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=7):
     """
     draw num_examples states from the initial state distribution defined by
     do_task.sample_rope_state
+    using intial states from actionfile
 
     writes results to fname
     """
-    raise NotImplementedError
+    if not perturb_bounds:
+        min_rad, max_rad = 0.5, 0.15
+    else:
+        min_rad, max_rad = pertub_bounds
+    taskfile = h5py.File(taskfname, 'w')
+    actionfile = h5py.File(actionfname, 'r')
+    try:
+        for i in range(num_examples):
+            sys.stdout.write('Creating State {}/{}           \r'.format(i, num_examples))
+            sys.stdout.flush()
+            with dhm_utils.suppress_stdout():
+                taskfile[str(i)] = dt.sample_rope_state(actionfile, perturb_points=num_perturb_pts, 
+                                                        min_rad=min_rad, max_rad=max_rad)
+        print ''
+    except:
+        print 'encountered exception', sys.exc_info()
+        raise
+    finally:                
+        taskfile.close()
+        actionfile.close()
+    assert check_task_file(taskfname)
 
 def check_task_file(fname):
     """
-    probably unecessary, but checks that a task file is properly labelled sequentially and has pt clouds in the values
+    probably unecessary, but checks that a task file is properly labelled sequentially
     """
-    raise NotImplementedError
+    f = h5py.File(fname, 'r')
+    success = True
+    for i in range(len(f)):
+        if str(i) not in f:
+            print 'task file {} is missing key {}'.format(fname, i)
+            success = False
+    f.close()
+    return success
 
 
