@@ -46,8 +46,8 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     for i in range(max(tree_sizes)):
         dhm_utils.one_l_print('doing bootstrapping {}/{}'.format(i, max(tree_sizes)))
         if i in tree_sizes:
-            bootrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
-            shutil.copyfile(bootstrap_fname, bootstap_i_fname)
+            bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
+            shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
         _ = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
     return True
 
@@ -161,7 +161,7 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
                 success = False
             for lr in 'lr':
                 if '{}_gripper_joint'.format(lr) not in bootf[seg_name]:
-                    print 'boostrap file {} root segment {} missing {}_gripper_joint'.format(boostrap_fname, seg_name, lr)
+                    print 'boostrap file {} root segment {} missing {}_gripper_joint'.format(bootstrap_fname, seg_name, lr)
                     success = False
         for seg_name, seg_info in bootf.iteritems():
             seg_name = str(seg_name)
@@ -170,24 +170,24 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
                     print 'bootstrap file {} segment {} missing key {}'.format(bootstrap_fname, seg_name, k)
             for lr in 'lr':
                 if lr not in seg_info['hmats']:
-                    print 'boostrap file {} segment {} missing {} hmats'.format(boostrap_fname, seg_name, lr)
+                    print 'boostrap file {} segment {} missing {} hmats'.format(bootstrap_fname, seg_name, lr)
                     success = False
             parent = str(seg_info['parent'][()])
             if parent not in bootf:
-                print 'boostrap file {} missing parent {} for segment {}'.format(boostrap_fname, parent, seg_name)
+                print 'boostrap file {} missing parent {} for segment {}'.format(bootstrap_fname, parent, seg_name)
                 success = False
             parent_children = bootf[parent]['children'][()]
             if parent != seg_name and seg_name not in parent_children:
-                print 'boostrap file {} parent {} does not have pointer to child {}'.format(boostrap_fname, parent, seg_name)
+                print 'boostrap file {} parent {} does not have pointer to child {}'.format(bootstrap_fname, parent, seg_name)
                 success = False
             root_seg = str(seg_info['root_seg'][()])
             if root_seg not in bootf:
-                print 'boostrap file {} missing root_seg {} for segment {}'.format(boostrap_fname, root_seg, seg_name)
+                print 'boostrap file {} missing root_seg {} for segment {}'.format(bootstrap_fname, root_seg, seg_name)
                 success = False
             root_n = bootf[root_seg]['cloud_xyz'][:].shape[0]
             seg_m = seg_info['cloud_xyz'][:].shape[0]
             if seg_info['cmat'][:].shape != (root_n, seg_m):
-                print 'boostrap file {} cmat for segment {} has wrong dimension'.format(boostrap_fname, root_seg, seg_name)
+                print 'boostrap file {} cmat for segment {} has wrong dimension'.format(bootstrap_fname, root_seg, seg_name)
                 print 'is', seg_info['cloud_xyz'][:].shape[0], 'should be', (root_n, seg_m)
                 success = False
     except:
@@ -209,7 +209,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
     if not perturb_bounds:
         min_rad, max_rad = 0.02, 0.13
     else:
-        min_rad, max_rad = pertub_bounds
+        min_rad, max_rad = perturb_bounds
     taskfile = h5py.File(taskfname, 'w')
     actionfile = h5py.File(actionfname, 'r')
     try:
