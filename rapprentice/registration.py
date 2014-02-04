@@ -246,7 +246,6 @@ def tps_rpm_bootstrap(x_nd, y_md, z_kd, xy_corr, n_init_iter = 10, n_iter = 20, 
     wt_n = corr_nk.sum(axis=1)
     wt_k = corr_nk.sum(axis=0)
 
-
     xtarg_nd = (corr_nk/wt_n[:,None]).dot(z_kd)
     ztarg_kd = (corr_nk/wt_k[None,:]).T.dot(x_nd)
 

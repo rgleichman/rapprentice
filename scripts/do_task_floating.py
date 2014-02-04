@@ -22,6 +22,7 @@ from rapprentice import registration, colorize, \
     animate_traj, ros2rave, plotting_openrave, task_execution, \
     planning, func_utils, resampling, rope_initialization, clouds, ropesim_floating
 from rapprentice import math_utils as mu
+from rapprentice import knot_identification
 
 import trajoptpy
 import openravepy
@@ -88,28 +89,32 @@ class TaskParameters:
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
 def redprint(msg):
-    """Print the message to the console in red, bold font."""
+    """
+    Print the message to the console in red, bold font.
+    """
     print colorize.colorize(msg, "red", bold=True)
 
-
-def split_trajectory_by_gripper(seg_info):
-    """Split up the trajectory into sections with breaks occuring when the grippers open or close.
-
-    Return: (seg_starts, seg_ends)
-
+def yellowprint(msg):
     """
-    rgrip = asarray(seg_info["r_gripper_joint"])
-    lgrip = asarray(seg_info["l_gripper_joint"])
+    Print the message to the console in red, bold font.
+    """
+    print colorize.colorize(msg, "yellow", bold=True)
+
+def split_trajectory_by_gripper(rgrip_joints, lgrip_joints):
+    """
+    Split up the trajectory into sections with breaks occuring when the grippers open or close.
+    Return: (seg_starts, seg_ends)
+    """
+    assert len(rgrip_joints)==len(lgrip_joints), "joint trajectory length mis-match."
 
     thresh = .04  # open/close threshold
-
-    n_steps = len(lgrip)
+    n_steps = len(lgrip_joints)
 
     # indices BEFORE transition occurs
-    l_openings = np.flatnonzero((lgrip[1:] >= thresh) & (lgrip[:-1] < thresh))
-    r_openings = np.flatnonzero((rgrip[1:] >= thresh) & (rgrip[:-1] < thresh))
-    l_closings = np.flatnonzero((lgrip[1:] < thresh) & (lgrip[:-1] >= thresh))
-    r_closings = np.flatnonzero((rgrip[1:] < thresh) & (rgrip[:-1] >= thresh))
+    l_openings = np.flatnonzero((lgrip_joints[1:] >= thresh) & (lgrip_joints[:-1] < thresh))
+    r_openings = np.flatnonzero((rgrip_joints[1:] >= thresh) & (rgrip_joints[:-1] < thresh))
+    l_closings = np.flatnonzero((lgrip_joints[1:] < thresh) & (lgrip_joints[:-1] >= thresh))
+    r_closings = np.flatnonzero((rgrip_joints[1:] < thresh) & (rgrip_joints[:-1] >= thresh))
 
     before_transitions = np.r_[l_openings, r_openings, l_closings, r_closings]
     after_transitions  = before_transitions + 1
@@ -267,58 +272,31 @@ def exec_traj_sim(bodypart2traj, animate):
                               callback=sim_callback, step_viewer=animate)
     return True
 
-#orig cost_reg_final = 0.01
-cost_reg_final = 0.03
 
-def registration_cost(xyz0, xyz1):
-    scaled_xyz0, _ = registration.unit_boxify(xyz0)
-    scaled_xyz1, _ = registration.unit_boxify(xyz1)
-    #TODO: n_iter was 10, reg_final was 0.01
-    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10,
-                                    reg_init=10, reg_final=cost_reg_final)
-    cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
-    return cost
-
-#TODO: was 0.025
-DS_SIZE = .025
-#DS_SIZE = .021
-#DS_SIZE = .045
 
 #TODO: possibly memoize
 #@func_utils.once
-def get_downsampled_clouds(values):
-    #TODO: actually fix this. It is probably better to upsample the derived segments
+def get_downsampled_clouds(values, DS_SIZE=0.025):
     cloud_list = []
     shapes = []
     for seg in values:
         cloud = seg["cloud_xyz"]
-        #This eliminates the z dimension
         cloud = cloud[...].copy()
-        #cloud[:, 2] = np.mean(cloud[:, 2])
         if cloud.shape[0] > 200:
             down_cloud = clouds.downsample(cloud, DS_SIZE)
         else:
-            down_cloud = clouds.downsample(cloud, 0.01 * DS_SIZE)
+            down_cloud = clouds.downsample(cloud, DS_SIZE)
 
-        #down_cloud[20:, 2] = 0.66
-        #down_cloud[:, 2] = np.mean(down_cloud[:, 2])
         cloud_list.append(down_cloud)
         shapes.append(down_cloud.shape)
-        #print "cloud_shape = ", down_cloud.shape
-    #return [clouds.downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
     return cloud_list, shapes
-
-
-def downsample(cloud, size):
-    print "cloud_size", cloud.size
-    return clouds.downsample(cloud, size)
 
 
 def remove_inds(a, inds):
     return [x for (i, x) in enumerate(a) if i not in inds]
 
 
-def find_closest_manual(demofile, _new_xyz, original=False):
+def find_closest_manual(demofile, _new_xyz):
     """for now, just prompt the user"""
     seg_names = demofile.keys()
     print_string = "choose from the following options (type an integer). Enter a negative number to exit."
@@ -333,55 +311,50 @@ def find_closest_manual(demofile, _new_xyz, original=False):
     return chosen_seg
 
 
-def auto_choose(demofile, new_xyz, only_original_segments):
-    """
-    @param demofile:
-    @param new_xyz:
-    @param only_original_segments: if true, then only the original_segments will be registered with
-    @return:
-    """
-    import pprint
+def registration_cost(xyz0, xyz1):
+    scaled_xyz0, _ = registration.unit_boxify(xyz0)
+    scaled_xyz1, _ = registration.unit_boxify(xyz1)
+    f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10, rot_reg=1e-3)
+    cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)   
+    return cost
 
-    """Return the segment with the lowest warping cost. Takes about 2 seconds."""
-    parallel = True
-    if parallel:
+
+def auto_choose(actionfile, new_xyz, nparallel=-1):
+    """
+    @param demofile: h5py.File object
+    @param new_xyz : new rope point-cloud
+    @nparallel     : number of parallel jobs to run for tps cost calculaion.
+                     If -1 only 1 job is used (no parallelization).
+    
+    @return          : return the name of the segment with the lowest warping cost.
+    """
+    if not nparallel == -1:
         from joblib import Parallel, delayed
-    items = demofile.items()
-    if only_original_segments:
-        #remove all derived segments from items
-        print("Only registering with the original segments")
-        items = [item for item in items if not "derived" in item[1].keys()]
-    unzipped_items = zip(*items)
-    keys = unzipped_items[0]
-    values = unzipped_items[1]
-    ds_clouds, shapes = get_downsampled_clouds(values)
-    ds_new = clouds.downsample(new_xyz, 0.01 * DS_SIZE)
-    #print 'ds_new_len shape', ds_new.shape
-    if parallel:
+        nparallel = min(nparallel, 8)
+
+    demo_data = actionfile.items()
+
+    if nparallel != -1:
         before = time.time()
-        #TODO: change back n_jobs=12 ?
-        costs = Parallel(n_jobs=8, verbose=0)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
-        after = time.time()
+        costs  = Parallel(n_jobs=nparallel, verbose=0)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
+        after  = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
         costs = []
-        for (i, ds_cloud) in enumerate(ds_clouds):
-            costs.append(registration_cost(ds_cloud, ds_new))
-            print(("completed %i/%i" % (i + 1, len(ds_clouds))))
-            #print(("costs\n", costs))
+        for i, ddata in enumerate(demo_data):
+            costs.append(registration_cost(ddata[1]['cloud_xyz'][:], new_xyz))
+            print(("tps-cost completed %i/%i" % (i + 1, len(demo_data))))
+
     ibest = np.argmin(costs)
-    print "ibest = ", ibest
-    #pprint.pprint(zip(keys, costs, shapes))
-    #print keys
-    print "best key = ", keys[ibest]
-    print "best cost = ", costs[ibest]
-    return keys[ibest]
+    return demo_data[ibest][0]
 
 
-def arm_moved(joint_traj):
-    if len(joint_traj) < 2:
+
+def arm_moved(hmat_traj):
+    if len(hmat_traj) < 2:
         return False
-    return ((joint_traj[1:] - joint_traj[:-1]).ptp(axis=0) > .01).any()
+    tts = hmat_traj[:,:3,3]
+    return ((tts[1:] - tts[:-1]).ptp(axis=0) > .01).any()
 
 
 def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f, old_xyz, new_xyz, last_one=False):
@@ -445,25 +418,23 @@ def unif_resample(traj, max_diff, wt=None):
     newt = np.interp(newl, l, np.arange(len(traj)))
     return traj_rs, newt
 
-#<diffuseColor>.96 .87 .70</diffuseColor>
+
 def make_table_xml(translation, extents):
     xml = """
-<Environment>
-  <KinBody name="table">
-    <Body type="static" name="table_link">
-      <Geom type="box">
-        <Translation>%f %f %f</Translation>
-        <extents>%f %f %f</extents>
-        <diffuseColor>.96 .87 .70</diffuseColor>
-      </Geom>
-    </Body>
-  </KinBody>
-</Environment>
-""" % (translation[0], translation[1], translation[2], extents[0], extents[1], extents[2])
+    <Environment>
+      <KinBody name="table">
+        <Body type="static" name="table_link">
+          <Geom type="box">
+            <Translation>%f %f %f</Translation>
+            <extents>%f %f %f</extents>
+            <diffuseColor>.96 .87 .70</diffuseColor>
+          </Geom>
+        </Body>
+      </KinBody>
+    </Environment>
+    """ % (translation[0], translation[1], translation[2], extents[0], extents[1], extents[2])
     return xml
 
-
-###################
 
 
 def do_single_task(task_params):
@@ -603,6 +574,78 @@ def setup_and_return_action_file(action_file, animate):
 
 
 
+def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False):
+    """
+    @seg_info  : segment information from the h5 file for the segment with least tps fit cost.
+    @new_xyz   : point cloud of the rope in the test situation.
+    @warp_root : warp the root trajectory if True else warp the chosen segment's trajectory.
+    
+    @returns   : the warped trajectory for l/r grippers and the mini-segment information.
+    """
+    handles = []
+    seg_xyz = seg_info["cloud_xyz"][:]    
+    scaled_seg_xyz,  seg_params  = registration.unit_boxify(seg_xyz)
+    scaled_new_xyz,  new_params  = registration.unit_boxify(new_xyz)
+
+    if plot:
+        handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
+        handles.append(Globals.env.plot3(seg_xyz, 5, (1, 0, 0)))
+
+
+    if warp_root:
+        root_seg_name = seg_info['root_seg']
+        root_xyz      = demofile[root_seg_name]['cloud_xyz'][:]
+        seg_root_cmat = seg_info['cmat'][:]
+
+        scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
+    
+
+        ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ## TODO : MAKE SURE THAT THE SCALING IS BEING DONE CORRECTLY HERE:
+        ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!        
+        f_root2new, _, corr_new2root = registration.tps_rpm_bootstrap(scaled_root_xyz, scaled_seg_xyz, scaled_new_xyz, seg_root_cmat, 
+                                                                      plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
+                                                                      rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
+                                                                      reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz)
+        f_warping = registration.unscale_tps(f_root2new, root_params, new_params)
+        old_ee_traj  = demofile[root_seg_name]['hmats']
+        rgrip_joints = demofile[root_seg_name]['r_gripper_joint'][:]
+        lgrip_joints = demofile[root_seg_name]['l_gripper_joint'][:]
+        cmat         = corr_new2root
+
+    else: ## warp to the chosen segment:
+        f_seg2new, _, corr_new2seg = registration.tps_rpm_bij(scaled_seg_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
+                                                              plotting=5 if plot else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
+                                                              reg_init=10, reg_final=.01, old_xyz=seg_xyz, new_xyz=new_xyz, 
+                                                              return_corr=True)       
+        f_warping = registration.unscale_tps(f_seg2new, seg_params, new_params)
+        old_ee_traj = seg_info['hmats']
+        rgrip_joints = seg_info['r_gripper_joint'][:]
+        lgrip_joints = seg_info['l_gripper_joint'][:]
+        cmat         = corr_new2seg
+
+        
+
+    if plot:
+        handles.extend(plotting_openrave.draw_grid(Globals.env, f_warping.transform_points, new_xyz.min(axis=0) - np.r_[0, 0, .1],
+                                                   new_xyz.max(axis=0) + np.r_[0, 0, .02], xres=.01, yres=.01, zres=.04))
+
+    warped_ee_traj = {}
+    #Transform the gripper trajectory here
+    for lr in 'lr':
+        new_ee_traj        = f_root2new.transform_hmats(old_ee_traj[lr][:])
+        warped_ee_traj[lr] = new_ee_traj
+
+        if plot:
+            handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
+            handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
+
+
+    miniseg_starts, miniseg_ends = split_trajectory_by_gripper(rgrip_joints, lgrip_joints)
+    return (cmat, warped_ee_traj, miniseg_starts, miniseg_ends, {'r':rgrip_joints, 'l':lgrip_joints})
+
+
+
 def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None):
     """
     Do the body of the main task execution loop (ie. do a segment).
@@ -621,151 +664,54 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     #return {'found_knot': found_knot, 'seg_info': {'segment': segment, 'link2eetraj': link2eetraj, 'new_xyz': new_xyz}}
     return {'found_knot': found_knot, 'seg_info': seg_info}
     """
-    #TODO -- Return the new trajectory and state info to be used for bootstrapping (knot_success, new_xyz, link2eetraj,
-    #TODO segment)
-
-    #TODO -- End condition
-    #TODO -- max_segments logic
     redprint("Acquire point cloud")
-
     move_sim_arms_to_side()
-    #TODO -- Possibly refactor this section to be before the loop
 
-    new_xyz           = Globals.sim.observe_cloud()
     new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
+    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.025)
 
-    print "loop_body only_original_segments", task_params.only_original_segments
-    segment = choose_segment(demofile, new_xyz, task_params.only_original_segments)
+    segment = choose_segment(demofile, new_xyz)
     if segment is None:
-        return None
-    seg_info = demofile[segment]
+        print "Got no segment while choosing a segment for warping."
+        sys.exit(-1)
 
-    handles = []
-    old_xyz = np.squeeze(seg_info["cloud_xyz"])
-    handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
+    seg_info      = demofile[segment]
+    redprint("Getting warped trajectory...")
+    cmat, warped_ee_traj, miniseg_starts, miniseg_ends, joint_traj = get_warped_trajectory(seg_info, new_xyz, demofile, 
+                                                                                     warp_root=task_params.warp_root,
+                                                                                     plot=task_params.animate)
+    redprint("executing segment trajectory...")
 
-    #TODO: test that old_xyz is now bigger if from a derived segment
-    #old_xyz = clouds.downsample(old_xyz, DS_SIZE)
-    if not "derived" in seg_info.keys():
-        old_xyz = downsample(old_xyz, DS_SIZE)
-        print "derived, so downsamping"
-        #new_xyz = clouds.downsample(new_xyz, DS_SIZE)
-    #new_xyz = downsample_if_big(new_xyz, DS_SIZE)
-    handles.append(Globals.env.plot3(old_xyz, 5, (1, 0, 0)))
-
-    print "new_xyz cloud size", new_xyz.shape
-    print "old_xyz cloud size", old_xyz.shape
-    scaled_old_xyz, src_params  = registration.unit_boxify(old_xyz)
-    scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)
-    #TODO: get rid of g
-    f, g = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb=tpsrpm_plot_cb,
-                                    plotting=5 if animate else 0, rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
-                                    reg_init=10, reg_final=.01, old_xyz=old_xyz, new_xyz=new_xyz)
-    f = registration.unscale_tps(f, src_params, targ_params)
-    g = registration.unscale_tps(g, src_params, targ_params)
-    #Globals.exec_log(curr_step, "gen_traj.f", f)
-
-    #handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
-    #                                           old_xyz.max(axis=0) + np.r_[0, 0, .1], xres=.1, yres=.1, zres=.04))
-    handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
-                                               old_xyz.max(axis=0) + np.r_[0, 0, .02], xres=.01, yres=.01, zres=.04))
-    #handles.extend(plotting_openrave.draw_grid(Globals.env, g.transform_points, old_xyz.min(axis=0) - np.r_[0, 0, .1],
-    #                                           old_xyz.max(axis=0) + np.r_[0, 0, .02], xres=.01, yres=.01, zres=.04))
-
-    link2eetraj = {}
-    #link2eetraj is a hash of gripper fram to new trajectory
-
-    #Transform the gripper trajectory here
-    for lr in 'lr':
-        link_name = "%s_gripper_tool_frame" % lr
-        #old_ee_traj is the old gripper trajectory
-        old_ee_traj = asarray(seg_info[link_name]["hmat"])
-        #new_ee_traj is the transformed gripper trajectory
-        new_ee_traj = f.transform_hmats(old_ee_traj)
-
-        link2eetraj[link_name] = new_ee_traj
-
-        #Draw the old and new gripper trajectories as lines
-        handles.append(Globals.env.drawlinestrip(old_ee_traj[:, :3, 3], 2, (1, 0, 0, 1)))
-        handles.append(Globals.env.drawlinestrip(new_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
-        #Globals.exec_log(curr_step, "gen_traj.link2eetraj", link2eetraj)
-
-    miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)
-    success = True
-    #print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
-
-    #TODO: modify for no body
     for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
-        ################################
-        redprint("Generating joint trajectory for segment %s, part %i" % (segment, i_miniseg))
-
-        # figure out how we're gonna resample stuff
-        lr2oldtraj = {}
+        lr_miniseg_traj = {}
         for lr in 'lr':
-            manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
-            #old_joint_traj is the old trajectory inside the minisegment
-            old_joint_traj = asarray(seg_info[manip_name][i_start: i_end + 1])
-            #print (old_joint_traj[1:] - old_joint_traj[:-1]).ptp(axis=0), i_start, i_end
-            if arm_moved(old_joint_traj):
-                lr2oldtraj[lr] = old_joint_traj
-        if len(lr2oldtraj) > 0:
-            old_total_traj = np.concatenate(lr2oldtraj.values(), 1)
-            JOINT_LENGTH_PER_STEP = .1
-            _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
-            ####
+            ee_hmat_traj = warped_ee_traj[lr][:][i_start: i_end + 1]
+            if arm_moved(ee_hmat_traj):
+                lr_miniseg_traj[lr] = ee_hmat_traj
 
-        ### Generate fullbody traj  << changed for floating grippers
-        bodypart2traj = {}
-        for (lr, old_joint_traj) in lr2oldtraj.items():
-            manip_name = {"l": "leftarm", "r": "rightarm"}[lr]
-
-            old_joint_traj_rs = mu.interp2d(timesteps_rs, np.arange(len(old_joint_traj)), old_joint_traj)
-
-            ee_link_name   = "%s_gripper_tool_frame" % lr
-            new_ee_traj    = link2eetraj[ee_link_name][i_start: i_end + 1]
-            new_ee_traj_rs = resampling.interp_hmats(timesteps_rs, np.arange(len(new_ee_traj)), new_ee_traj)
-            #Call the planner (eg. trajopt)
-            with dhm_u.suppress_stdout():
-                new_joint_traj = planning.plan_follow_traj(Globals.robot, manip_name,
-                                                           Globals.robot.GetLink(ee_link_name), new_ee_traj_rs,
-                                                           old_joint_traj_rs)
-            part_name = {"l": "larm", "r": "rarm"}[lr]
-            bodypart2traj[part_name] = new_joint_traj
-
-        ### Execute the gripper ###
-        redprint("Executing joint trajectory for segment %s, part %i using arms '%s'" % (
-            segment, i_miniseg, bodypart2traj.keys()))
+        yellowprint("\t Executing trajectory for segment %s, part %i using arms '%s'" % (segment, i_miniseg, lr_miniseg_traj.keys()))
 
         for lr in 'lr':
-            gripper_open = binarize_gripper(seg_info["%s_gripper_joint" % lr][i_start])
-            prev_gripper_open = binarize_gripper(
-                seg_info["%s_gripper_joint" % lr][i_start - 1]) if i_start != 0 else False
+            gripper_open      = binarize_gripper(joint_traj[lr][i_start])
+            prev_gripper_open = binarize_gripper(joint_traj[lr][i_start - 1]) if i_start != 0 else False
             if not set_gripper_sim(lr, gripper_open, prev_gripper_open, animate):
                 redprint("Grab %s failed" % lr)
                 success = False
         if not success:
             break
-            # Execute the robot trajectory
-        if len(bodypart2traj) > 0:
-            success &= exec_traj_sim(bodypart2traj, animate)
 
-        #Globals.exec_log(curr_step, "execute_traj.miniseg_%d.sim_rope_nodes_after_traj" % i_miniseg, Globals.sim.rope.GetNodes())
+        if len(lr_miniseg_traj) > 0:
+            success &= exec_traj_sim(lr_miniseg_traj, animate)
 
         if not success:
             break
 
     Globals.sim.settle(animate=animate)
-    if Globals.exec_log:
-        Globals.exec_log(curr_step, "execute_traj.sim_rope_nodes_after_full_traj", Globals.sim.rope.GetNodes())
-
-    from rapprentice import knot_identification
-
-    knot_name = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
+    knot_name  = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
     found_knot = False
     if knot_name is not None:
         if knot_name == knot or knot == "any":
             redprint("Identified knot: %s. Success!" % knot_name)
-            #Globals.exec_log(curr_step, "result", True, description="identified knot %s" % knot_name)
             found_knot = True
         else:
             redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, knot))
@@ -773,8 +719,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
         redprint("Not a knot. Continuing.")
 
     redprint("Segment %s result: %s" % (segment, success))
-    #TODO: add the cmat to the seg_info_hash
-    seg_info_hash = {'parent': segment, 'hmats': link2eetraj, 'cloud_xyz': new_xyz_upsampled, 'cmat': None}
+    seg_info_hash = {'parent': segment, 'hmats': warped_ee_traj, 'cloud_xyz': new_xyz, 'cmat': cmat}
     return {'found_knot': found_knot, 'seg_info':seg_info_hash}
 
 
