@@ -27,6 +27,7 @@ def retime_hmats(lhmats, rhmats, max_cart_vel=.02, upsample_time=.1):
 class FloatingGripper(object):
     def __init__(self, env, init_tf):
         gripper_fname = osp.join(models_dir, 'pr2_gripper.dae')
+        self.env = env
         self.env.Load(gripper_fname)
         self.robot   = self.env.GetRobots()[-1]
         self.tt_link = self.robot.GetLinks()[-1]
@@ -48,10 +49,10 @@ class FloatingGripper(object):
     def get_endeffector_transform(self):
         return self.tt_link.GetTransform().dot(self.tt2ee)
 
-    def get_gripper_joint(self):
+    def get_gripper_joint_value(self):
         return self.robot.GetDOFValues()[0]
     
-    def set_gripper_joint(self, jval):
+    def set_gripper_joint_value(self, jval):
         self.robot.SetDOFValues([jval], [0])
         
     def in_grasp_region(self, pt):
@@ -125,7 +126,8 @@ class FloatingGripperSimulation(object):
         """
         load the gripper models
         """
-        rtf, ltf   = np.eye(4)
+        rtf   = np.eye(4)
+        ltf   = np.eye(4)
         rtf[0:3,3] = [0.5, 0,1]
         ltf[0:3,3] = [-0.5,0,1]
 

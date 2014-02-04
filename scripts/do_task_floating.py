@@ -186,8 +186,8 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
 
     Return False if the simulated gripper failed to grab the rope, eles return True.
     """
-    mult = 5
-    open_angle = .08 * mult
+    mult         = 5
+    open_angle   = .08 * mult
     closed_angle = .02 * mult
 
     target_val = open_angle if is_open else closed_angle
@@ -197,20 +197,19 @@ def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
         Globals.sim.release_rope(lr)
 
     # execute gripper open/close trajectory
-    joint_ind = Globals.robot.GetJoint("%s_gripper_l_finger_joint" % lr).GetDOFIndex()
-    start_val = Globals.robot.GetDOFValues([joint_ind])[0]
+    start_val = Globals.sim.grippers[lr].get_gripper_joint_value()
+
     #gripper_velocity = 0.2
-    #a smaller number makes the gripper move slower.
-    #if the gripper moves slower then it will fling the rope less.
-    gripper_velocity = 0.005
-    joint_traj = np.linspace(start_val, target_val, np.ceil(abs(target_val - start_val) / gripper_velocity))
+    #  a smaller number makes the gripper move slower.
+    #  if the gripper moves slower then it will fling the rope less.
+    gripper_velocity = 0.005  ##<<=== is this too small??
+    joint_traj       = np.linspace(start_val, target_val, np.ceil(abs(target_val - start_val) / gripper_velocity))
     #print "joint_traj after retime =", joint_traj
     for i, val in enumerate(joint_traj):
-        Globals.robot.SetDOFValues([val], [joint_ind])
+        Globals.sim.grippers[lr].set_gripper_joint_value(val)
         Globals.sim.step()
         if animate and not i%10:
             Globals.viewer.Step()
-            # add constraints if necessary
 
     if not is_open and prev_is_open:
         if not Globals.sim.grab_rope(lr):
@@ -241,7 +240,7 @@ def exec_traj_sim(bodypart2traj, animate):
         Globals.sim.step()
 
     dof_inds = []
-    trajs = []
+    trajs    = []
     for (part_name, traj) in bodypart2traj.items():
         manip_name = {"larm": "leftarm", "rarm": "rightarm"}[part_name]
         dof_inds.extend(Globals.robot.GetManipulator(manip_name).GetArmIndices())
@@ -613,8 +612,9 @@ def setup_and_return_demofile(demofile_name, animate):
 
 
 
-def loop_body(demofile, choose_segment, knot, animate, task_params, curr_step=None):
-    """Do the body of the main task execution loop (ie. do a segment).
+def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None):
+    """
+    Do the body of the main task execution loop (ie. do a segment).
     Arguments:
         curr_step is 0 indexed
         choose_segment is a function that returns the key in the demofile to the segment
