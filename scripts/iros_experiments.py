@@ -75,7 +75,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
                 cloud_xyz, parent, hmats, cmat = [seg_values[k] for k in ['cloud_xyz', 'parent', 'hmats', 'cmat']]
                 children = []
                 root_seg = str(bootf[str(parent)]['root_seg'][()])
-                create_bootstrap_item(bootf, cloud_xyz, root_seg, parent, children, hmats, cmat)
+                create_bootstrap_item(bootf, cloud_xyz, root_seg, str(parent), children, hmats, cmat)
         except:
             print 'encountered exception', sys.exc_info()
             print 'warning, bootstrap file may be malformed'
@@ -198,7 +198,7 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
         raise
     return success
 
-def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=7):
+def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=5):
     """
     draw num_examples states from the initial state distribution defined by
     do_task.sample_rope_state
@@ -207,7 +207,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
     writes results to fname
     """
     if not perturb_bounds:
-        min_rad, max_rad = 0.5, 0.15
+        min_rad, max_rad = 0.02, 0.13
     else:
         min_rad, max_rad = pertub_bounds
     taskfile = h5py.File(taskfname, 'w')
@@ -249,5 +249,5 @@ def run_example_test():
         pass
     act_fname = 'data/actions.h5'
     task_fname = 'data/test_tasks.h5'
-    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 1, tree_sizes = [0])
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 5, tree_sizes = [0])
 

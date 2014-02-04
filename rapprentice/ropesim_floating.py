@@ -43,11 +43,11 @@ class FloatingGripper(object):
         self.tf_ee2base = self.tf_ee2tt.dot(self.tf_tt2base)
 
     def set_endeffector_transform(self, tf_ee):
-        tf_base = tf_ee.dot(self.tf_ee2base)
+        tf_base = tf_ee.dot(self.tf_tt2base)
         self.robot.SetTransform(tf_base)
 
     def get_endeffector_transform(self):
-        return self.tt_link.GetTransform().dot(self.tf_tt2ee)
+        return self.tt_link.GetTransform()#.dot(self.tf_tt2ee)
 
     def get_gripper_joint_value(self):
         return self.robot.GetDOFValues()[0]

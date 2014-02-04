@@ -528,17 +528,17 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
     table_height = new_xyz[:, 2].mean() - 0.17
-    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[.85, .55, .01])
+    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[10, 10, .01])
     Globals.env.LoadData(table_xml)
     
     Globals.sim = ropesim_floating.FloatingGripperSimulation(Globals.env)
     move_sim_arms_to_side()
     
     Globals.sim.create(new_xyz)
-    
+    Globals.sim.settle()    
     if animate:
         Globals.viewer = trajoptpy.GetViewer(Globals.env)
-    
+
     print "set viewpoint, then press 'p'"
     Globals.viewer.Idle()
     return demofile
