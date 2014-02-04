@@ -60,9 +60,8 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     taskfile = h5py.File('task_fname', 'r')
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
-    actfile = h5py.File(action_fname, 'r')
-    task_params = TaskParameters(actfile, init_xyz, animate=True, warp_root=False) # currently set to test that correspondence trick does what we want
-    actfile.close()
+    # currently set to test that correspondence trick does what we want
+    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=False)     
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
