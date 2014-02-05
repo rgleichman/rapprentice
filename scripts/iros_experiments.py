@@ -39,18 +39,22 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     setup_bootstrap_file(action_fname, bootstrap_fname)
     bootstrap_orig = osp.splitext(bootstrap_fname)[0] + '_orig.h5'
     shutil.copyfile(bootstrap_fname, bootstrap_orig)
+    results = []
     for i in range(burn_in):
         dhm_utils.one_l_print('doing burn in {}/{}'.format(i, burn_in))
-        _ = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname))
+        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname))
+        results.append(res)
         task_ctr += 1                        
     for i in range(max(tree_sizes)):
         dhm_utils.one_l_print('doing bootstrapping {}/{}'.format(i, max(tree_sizes)))
         if i in tree_sizes:
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
-        _ = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
+        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
+        results.append(res)
         task_ctr += 1
-    return True
+    print 'success rate', sum(results)/float(len(results))
+    return sum(results)/float(len(results))
 
 def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     """
@@ -67,7 +71,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=False)
+    task_params = TaskParameters(action_fname, init_xyz, animate=False, warp_root=True)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -254,7 +258,7 @@ def run_example_test():
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 5, tree_sizes = [0])
 
 def main():
-    boot_fname = 'data/test_bootstrapping/test_bootstrapping.h5'
+    boot_fname = 'data/test_bootstrapping_2/test_bootstrapping.h5'
     try:
         os.remove(boot_fname)
     except:
@@ -267,7 +271,7 @@ def main():
             raise
     except:
         gen_task_file(task_fname, 200, act_fname)
-    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[20])
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[10])
 
 if __name__ == "__main__":
     #argument, directory for bootstrapping stuff

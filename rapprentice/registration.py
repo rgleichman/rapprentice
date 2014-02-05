@@ -235,8 +235,8 @@ def tps_rpm_bootstrap(x_nd, y_md, z_kd, xy_corr, n_init_iter = 10, n_iter = 20, 
 
     return a warp taking x to z, proceeds by warping y->z, then intializes tps_rpm with the correspondences from that warping
     """
-    _, _, yz_corr = tps_rpm_bij(y_md, z_kd, n_iter = n_init_iter, reg_init = reg_init, reg_final = reg_final, 
-                                rad_init = rad_init, rad_final = rad_final, rot_reg = rot_reg, plotting=True,
+    _, _, yz_corr = tps_rpm_bij(y_md, z_kd, n_iter = n_iter, reg_init = reg_init, reg_final = reg_final, 
+                                rad_init = rad_init, rad_final = rad_final, rot_reg = rot_reg, plotting=plotting,
                                 plot_cb = plot_cb, old_xyz = old_xyz, new_xyz = new_xyz, return_corr = True)
     xz_corr = xy_corr.dot(yz_corr)
     # corr_nk, r_N, _ =  balance_matrix3(xz_corr, 10, 1e-1, 1e-2)
@@ -254,14 +254,7 @@ def tps_rpm_bootstrap(x_nd, y_md, z_kd, xy_corr, n_init_iter = 10, n_iter = 20, 
     f._cost = tps.tps_cost(f.lin_ag, f.trans_g, f.w_ng, f.x_na, xtarg_nd, reg_final, wt_n=wt_n)/wt_n.mean()
     g._cost = tps.tps_cost(g.lin_ag, g.trans_g, g.w_ng, g.x_na, ztarg_kd, reg_final, wt_n=wt_k)/wt_k.mean()
     print 'cost:\t', f._cost + g._cost
-
-    plot_cb(x_nd, z_kd, xtarg_nd, corr_nk, wt_n, f, x_nd, z_kd, last_one=0)
-
-    result = tps_rpm_bij(x_nd, z_kd, n_iter = n_iter, reg_init = reg_init, reg_final = reg_final, 
-                         rad_init = rad_init, rad_final = rad_final, rot_reg = rot_reg, plotting = plotting,
-                         plot_cb = plot_cb, old_xyz = old_xyz, new_xyz = new_xyz, f_init = f, g_init = g, return_corr = True)
-    
-    return result
+    return (f, g, corr_nk)
 
 
 def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 

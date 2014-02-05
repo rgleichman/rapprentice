@@ -542,7 +542,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
 
     return demofile
 
-
+compare_bootstrap_correspondences = False# set to true and call with warp_root=False to compare warping derived trajectories to warping initial with bootstrapped correspondences
 
 def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False):
     """
@@ -596,6 +596,30 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
         lgrip_joints = root_segment['l_gripper_joint'][:]
         
         cmat         = seg_root_cmat.dot(corr_new2seg)
+        
+        if compare_bootstrap_correspondences:
+            scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
+    
+            f_root2new, _, corr_new2root = registration.tps_rpm_bootstrap(scaled_root_xyz, scaled_seg_xyz, scaled_new_xyz, seg_root_cmat, 
+                                                                          plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
+                                                                          rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
+                                                                          reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz)
+            root_warping = registration.unscale_tps(f_root2new, root_params, new_params)
+            root_ee_traj  = root_segment['hmats']
+            diff = 0
+            for lr in 'lr':
+                no_root_ee_traj        = f_warping.transform_hmats(old_ee_traj[lr][:])
+                warped_root_ee_traj = root_warping.transform_hmats(root_ee_traj[lr][:])
+                diff += np.linalg.norm(no_root_ee_traj - warped_root_ee_traj)
+                handles.append(Globals.env.drawlinestrip(old_ee_traj[lr][:, :3, 3], 2, (1, 0, 0, 1)))
+                handles.append(Globals.env.drawlinestrip(no_root_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
+                handles.append(Globals.env.drawlinestrip(warped_root_ee_traj[:, :3, 3], 2, (0, 1, 0, 1)))
+            if plot:
+                print 'traj norm differences:\t', diff
+                Globals.viewer.Idle()
+            
+            
+            
 
         
 
