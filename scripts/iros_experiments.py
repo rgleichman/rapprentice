@@ -266,7 +266,7 @@ def main():
         if not good_task_file:
             raise
     except:
-        gen_task_file(task_fname, 20, act_fname)
+        gen_task_file(task_fname, 200, act_fname)
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[20])
 
 if __name__ == "__main__":

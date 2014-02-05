@@ -301,7 +301,6 @@ def registration_cost(xyz0, xyz1):
     #plt.scatter(scaled_xyz1[:,0], scaled_xyz1[:,1], c='b' )
     #plt.show()
 
-    
     print xyz0.shape, xyz1.shape
     f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10, rot_reg=1e-3)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)   
@@ -326,7 +325,7 @@ def auto_choose(actionfile, new_xyz, nparallel=-1):
     if nparallel != -1:
         before = time.time()
         redprint("auto choose parallel..")
-        costs  = Parallel(n_jobs=nparallel, verbose=50)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
+        costs  = Parallel(n_jobs=nparallel, verbose=0)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
         after  = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
