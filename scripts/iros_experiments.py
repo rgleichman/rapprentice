@@ -130,7 +130,8 @@ def create_bootstrap_item(outfile, cloud_xyz, root_seg, parent, children, hmats,
     if update_parent:
         parent_children = outfile[parent]['children'][()]
         del outfile[parent]['children']
-        if not parent_children: parent_children = []
+        if parent_children == 0:
+            parent_children = []
         parent_children = np.append(parent_children, [seg_name])
         outfile[parent]['children'] = parent_children
     if other_items:
@@ -216,7 +217,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
         for i in range(num_examples):
             dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_examples))
             with dhm_utils.suppress_stdout():
-                taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts, 
+                taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts,
                                                         min_rad=min_rad, max_rad=max_rad)
         print ''
     except:
@@ -265,7 +266,7 @@ def main():
             raise
     except:
         gen_task_file(task_fname, 200, act_fname)
-    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 10, tree_sizes = [20])
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[20])
 
 if __name__ == "__main__":
     #argument, directory for bootstrapping stuff

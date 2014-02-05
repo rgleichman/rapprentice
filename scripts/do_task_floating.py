@@ -561,10 +561,11 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
         handles.append(Globals.env.plot3(new_xyz, 5, (0, 0, 1)))
         handles.append(Globals.env.plot3(seg_xyz, 5, (1, 0, 0)))
 
-
+    root_seg_name = seg_info['root_seg']
+    root_segment = demofile[root_seg_name.value]
+    root_xyz      = root_segment['cloud_xyz'][:]
     if warp_root:
-        root_seg_name = seg_info['root_seg']
-        root_xyz      = demofile[root_seg_name]['cloud_xyz'][:]
+
         seg_root_cmat = seg_info['cmat'][:]
 
         scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
@@ -578,9 +579,9 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
                                                                       rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
                                                                       reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz)
         f_warping = registration.unscale_tps(f_root2new, root_params, new_params)
-        old_ee_traj  = demofile[root_seg_name]['hmats']
-        rgrip_joints = demofile[root_seg_name]['r_gripper_joint'][:]
-        lgrip_joints = demofile[root_seg_name]['l_gripper_joint'][:]
+        old_ee_traj  = root_segment['hmats']
+        rgrip_joints = root_segment['r_gripper_joint'][:]
+        lgrip_joints = root_segment['l_gripper_joint'][:]
         cmat         = corr_new2root
 
     else: ## warp to the chosen segment:
@@ -590,8 +591,8 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
                                                               return_corr=True)       
         f_warping = registration.unscale_tps(f_seg2new, seg_params, new_params)
         old_ee_traj = seg_info['hmats']
-        rgrip_joints = seg_info['r_gripper_joint'][:]
-        lgrip_joints = seg_info['l_gripper_joint'][:]
+        rgrip_joints = root_segment['r_gripper_joint'][:]
+        lgrip_joints = root_segment['l_gripper_joint'][:]
         cmat         = corr_new2seg
 
         
