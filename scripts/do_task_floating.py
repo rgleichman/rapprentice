@@ -324,7 +324,7 @@ def auto_choose(actionfile, new_xyz, nparallel=-1):
 
     if nparallel != -1:
         before = time.time()
-        redprint("auto choose parallel..")
+        redprint("auto choose parallel with njobs = %d"%nparallel)
         costs  = Parallel(n_jobs=nparallel, verbose=0)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
         after  = time.time()
         print "Parallel registration time in seconds =", after - before
@@ -676,7 +676,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
 
     new_xyz = Globals.sim.observe_cloud(upsample=110)
 
-    segment = choose_segment(demofile, new_xyz, 5)
+    segment = choose_segment(demofile, new_xyz, -1)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)
