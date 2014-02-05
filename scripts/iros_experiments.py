@@ -19,11 +19,7 @@ except:
     from do_task import do_single_task_floating as do_single_task
 
 
-<<<<<<< HEAD
 DS_SIZE = 0.03
-=======
-DS_SIZE = .025
->>>>>>> 7e0981a03d7418068cc2ce4d8d488ed01b896a76
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
 def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
@@ -71,11 +67,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-<<<<<<< HEAD
     task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=True)
-=======
-    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=False)
->>>>>>> 7e0981a03d7418068cc2ce4d8d488ed01b896a76
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
