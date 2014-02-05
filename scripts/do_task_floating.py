@@ -155,7 +155,7 @@ def place_in_feasible_region(xyz):
 
 
 
-def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15):
+def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15, rotation=False):
     """
     samples a rope state, by picking a random segment, perturbing, rotating about the median, 
     then setting a random translation such that the rope is essentially within grasp room
@@ -168,11 +168,10 @@ def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15):
                                                                     perturb_peak_dist=perturb_radius,
                                                                     num_perturb_points=perturb_points)
     #rand_theta = np.pi*(np.random.rand() - 0.5)
-    rand_theta = np.random.randn()
-    rope_nodes = rotate_about_median(rope_nodes, rand_theta)
-    r_trans = np.r_[np.random.multivariate_normal([0, 0], np.eye(2)), [0]]
-    rope_nodes = rope_nodes + r_trans    
-    rope_nodes = place_in_feasible_region(rope_nodes)
+    if rotation:
+        rand_theta = np.random.randn()
+        rope_nodes = rotate_about_median(rope_nodes, rand_theta)
+        rope_nodes = place_in_feasible_region(rope_nodes)
     return rope_nodes
 
 def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
@@ -538,9 +537,9 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
     Globals.sim.settle()    
     if animate:
         Globals.viewer = trajoptpy.GetViewer(Globals.env)
+        print "set viewpoint, then press 'p'"
+        Globals.viewer.Idle()
 
-    print "set viewpoint, then press 'p'"
-    Globals.viewer.Idle()
     return demofile
 
 
@@ -614,7 +613,6 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
 
     miniseg_starts, miniseg_ends = split_trajectory_by_gripper(rgrip_joints, lgrip_joints)
     return (cmat, warped_ee_traj, miniseg_starts, miniseg_ends, {'r':rgrip_joints, 'l':lgrip_joints})
-
 
 
 def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None):

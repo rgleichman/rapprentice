@@ -66,7 +66,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=False)     
+    task_params = TaskParameters(action_fname, init_xyz, animate=False, warp_root=False)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -131,7 +131,7 @@ def create_bootstrap_item(outfile, cloud_xyz, root_seg, parent, children, hmats,
         parent_children = outfile[parent]['children'][()]
         del outfile[parent]['children']
         if not parent_children: parent_children = []
-        parent_children.append(seg_name)
+        parent_children = np.append(parent_children, [seg_name])
         outfile[parent]['children'] = parent_children
     if other_items:
         for k, v in other_items.iteritems():
@@ -198,7 +198,7 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
         raise
     return success
 
-def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=5):
+def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=7):
     """
     draw num_examples states from the initial state distribution defined by
     do_task.sample_rope_state
@@ -251,3 +251,26 @@ def run_example_test():
     task_fname = 'data/test_tasks.h5'
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 5, tree_sizes = [0])
 
+def main():
+    boot_fname = 'data/test_bootstrapping/test_bootstrapping.h5'
+    try:
+        os.remove(boot_fname)
+    except:
+        pass
+    act_fname = 'data/actions.h5'
+    task_fname = 'data/test_tasks.h5'
+    try:
+        good_task_file = check_task_file(task_fname)
+        if not good_task_file:
+            raise
+    except:
+        gen_task_file(task_fname, 200, act_fname)
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 10, tree_sizes = [20])
+
+if __name__ == "__main__":
+    #argument, directory for bootstrapping stuff
+    #argument, actions file
+    #tasks file is in bootstrapping_dir/tasks.h5
+    #optional args for burn in and tree sizes
+
+    main()
