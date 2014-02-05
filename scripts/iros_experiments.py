@@ -19,7 +19,11 @@ except:
     from do_task import do_single_task_floating as do_single_task
 
 
+<<<<<<< HEAD
 DS_SIZE = 0.03
+=======
+DS_SIZE = .025
+>>>>>>> 7e0981a03d7418068cc2ce4d8d488ed01b896a76
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
 def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
@@ -49,6 +53,7 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
         _ = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
+        task_ctr += 1
     return True
 
 def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
@@ -66,7 +71,11 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
+<<<<<<< HEAD
     task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=True)
+=======
+    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=False)
+>>>>>>> 7e0981a03d7418068cc2ce4d8d488ed01b896a76
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -253,26 +262,56 @@ def run_example_test():
     task_fname = 'data/test_tasks.h5'
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 5, tree_sizes = [0])
 
+
 def main():
-    boot_fname = 'data/test_bootstrapping/test_bootstrapping.h5'
+    args = parse_arguments()
+    boot_dir = args.bootstrapping_directory
+    #TODO  Should the boot_fname be different?
+    boot_fname = osp.join(boot_dir, 'test_bootstrapping.h5')
     try:
         os.remove(boot_fname)
     except:
         pass
-    act_fname = 'data/actions.h5'
-    task_fname = 'data/test_tasks.h5'
+    act_fname = args.actions_file
+    task_fname = osp.join(boot_dir, 'tasks.h5')
     try:
         good_task_file = check_task_file(task_fname)
         if not good_task_file:
             raise
     except:
         gen_task_file(task_fname, 200, act_fname)
-    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[20])
+    if args.burn_in:
+        burn_in = args.burn_in
+    else:
+        burn_in = 40
+    if args.tree_sizes:
+        tree_sizes = args.tree_sizes
+    else:
+        tree_sizes = None
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes)
+
+
+def parse_arguments():
+    import argparse
+
+    usage = """
+    Run {0} --help for a list of arguments
+    Warning: This may modify existing hdf5 files.
+    The task file should be in bootstrapping_directory/tasks.h5
+    """.format(sys.argv[0])
+
+    parser = argparse.ArgumentParser(usage=usage)
+    parser.add_argument("actions_file", type=str,
+                        help="The file that contains the original (probably human) demonstrations.")
+    parser.add_argument("bootstrapping_directory", type=str,
+                        help="The directory that contains or will contain the learned bootstrapped h5 files.")
+    parser.add_argument("--burn_in", type=int, default=None,
+                        help="The number of burn-in iterations to run. The burn-in iterations only uses original segments")
+    parser.add_argument("--tree_sizes", type=int, nargs="+", default=None,
+                        help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
+    args = parser.parse_args()
+    print "args =", args
+    return args
 
 if __name__ == "__main__":
-    #argument, directory for bootstrapping stuff
-    #argument, actions file
-    #tasks file is in bootstrapping_dir/tasks.h5
-    #optional args for burn in and tree sizes
-
     main()

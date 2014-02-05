@@ -22,7 +22,7 @@ from rapprentice import registration, colorize, \
     animate_traj, ros2rave, plotting_openrave, task_execution, \
     planning, func_utils, resampling, rope_initialization, clouds, ropesim_floating
 from rapprentice import math_utils as mu
-from rapprentice import knot_identification
+from knot_classifier import isKnot as is_knot
 
 import trajoptpy
 import openravepy
@@ -575,9 +575,10 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     root_seg_name = seg_info['root_seg']
     root_segment = demofile[root_seg_name.value]
     root_xyz      = root_segment['cloud_xyz'][:]
+    seg_root_cmat = seg_info['cmat'][:]
     if warp_root:
 
-        seg_root_cmat = seg_info['cmat'][:]
+        
 
         scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
     
@@ -604,7 +605,8 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
         old_ee_traj = seg_info['hmats']
         rgrip_joints = root_segment['r_gripper_joint'][:]
         lgrip_joints = root_segment['l_gripper_joint'][:]
-        cmat         = corr_new2seg
+        
+        cmat         = seg_root_cmat.dot(corr_new2seg)
 
         
 
@@ -652,7 +654,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     new_xyz           = clouds.downsample(new_xyz_upsampled, 0.02)
     print ">>>>>>>>>>>>>> ", new_xyz.shape
 
-    segment = choose_segment(demofile, new_xyz, 7)
+    segment = choose_segment(demofile, new_xyz, 5)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)
@@ -690,17 +692,8 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
             break
 
     Globals.sim.settle(animate=animate)
-    knot_name  = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
-    found_knot = False
-    if knot_name is not None:
-        if knot_name == knot:
-            redprint("Identified knot: %s. Success!" % knot_name)
-            found_knot = True
-        else:
-            redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, knot))
-    else:
-        redprint("Not a knot. Continuing.")
-
+    rope_nodes = Globals.sim.observe_cloud()
+    found_knot = is_knot(rope_nodes)
     redprint("Segment %s result: %s" % (segment, success))
     seg_info_hash = {'parent': segment, 'hmats': warped_ee_traj, 'cloud_xyz': new_xyz, 'cmat': cmat}
     return {'found_knot': found_knot, 'seg_info':seg_info_hash}
