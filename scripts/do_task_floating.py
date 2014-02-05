@@ -256,7 +256,7 @@ def exec_traj_sim(lr_traj, animate):
 
 #TODO: possibly memoize
 #@func_utils.once
-def get_downsampled_clouds(values, DS_SIZE=0.025):
+def get_downsampled_clouds(values, DS_SIZE):
     cloud_list = []
     shapes = []
     for seg in values:
@@ -316,7 +316,7 @@ def auto_choose(actionfile, new_xyz, nparallel=-1):
 
     if nparallel != -1:
         before = time.time()
-        costs  = Parallel(n_jobs=nparallel, verbose=0)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
+        costs  = Parallel(n_jobs=nparallel, verbose=50)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
         after  = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
@@ -440,8 +440,8 @@ def do_single_task(task_params):
     animate       = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = auto_choose
-    knot = "any"
-    
+    knot = "K3a1"
+
     ### Setup ###
     demofile = setup_and_return_action_file(action_file, task_params.cloud_xyz, animate=animate)
 
@@ -564,9 +564,10 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     root_seg_name = seg_info['root_seg']
     root_segment = demofile[root_seg_name.value]
     root_xyz      = root_segment['cloud_xyz'][:]
+    seg_root_cmat = seg_info['cmat'][:]
     if warp_root:
 
-        seg_root_cmat = seg_info['cmat'][:]
+        
 
         scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
     
@@ -593,7 +594,8 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
         old_ee_traj = seg_info['hmats']
         rgrip_joints = root_segment['r_gripper_joint'][:]
         lgrip_joints = root_segment['l_gripper_joint'][:]
-        cmat         = corr_new2seg
+        
+        cmat         = seg_root_cmat.dot(corr_new2seg)
 
         
 
@@ -637,10 +639,10 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     redprint("Acquire point cloud")
     move_sim_arms_to_side()
 
-    new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
-    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.025)
+    new_xyz_upsampled = Globals.sim.observe_cloud(upsample=300)
+    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.01)
 
-    segment = choose_segment(demofile, new_xyz, 7)
+    segment = choose_segment(demofile, new_xyz, 5)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)

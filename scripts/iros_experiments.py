@@ -49,6 +49,7 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
         _ = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
+        task_ctr += 1
     return True
 
 def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
