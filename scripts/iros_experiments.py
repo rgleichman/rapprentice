@@ -4,7 +4,7 @@ import os.path as osp
 import IPython as ipy
 import numpy as np
 import math
-import cloud
+#import cloud
 import cPickle as cp
 
 from rapprentice import clouds
@@ -75,7 +75,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=animate, warp_root=True)
+    task_params = TaskParameters(action_fname, init_xyz, animate=animate, warp_root=False)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -307,6 +307,43 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
         raise
     return success
 
+def gen_rot_sequence_task_file(taskfname, actionfname):
+    """
+    draw a sequence of training examples that consider rotating the pt clouds
+    rotation is initially and introduced so that we explore the manifold better
+    generates 200 samples
+    """
+    min_theta = np.pi/8
+    max_theta = np.pi
+    burnin_length = 50
+    num_samples = 200
+    theta_vals = np.linspace(min_theta, max_theta, num_samples - burnin_length)
+    min_rad, max_rad = 0.02, 0.13
+    num_perturb_pts = 7
+    taskfile = h5py.File(taskfname, 'w')
+    actionfile = h5py.File(actionfname, 'r')
+    try:
+        for i in range(burnin_length):
+            dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_samples))
+            with dhm_utils.suppress_stdout():
+                taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts,
+                                                        min_rad=min_rad, max_rad=max_rad, rotation = min_theta)
+        for j in range(burnin_length, num_samples):
+            dhm_utils.one_l_print('Creating State {}/{}'.format(j, num_samples))
+            print j, theta_vals[j-burnin_length]
+            with dhm_utils.suppress_stdout():
+                taskfile[str(j)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts,
+                                                        min_rad=min_rad, max_rad=max_rad, rotation = theta_vals[j-burnin_length])
+        print ''
+    except:
+        print 'encountered exception', sys.exc_info()
+        raise
+    finally:                
+        taskfile.close()
+        actionfile.close()
+    
+    
+
 def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=7):
     """
     draw num_examples states from the initial state distribution defined by
@@ -316,7 +353,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
     writes results to fname
     """
     if not perturb_bounds:
-        min_rad, max_rad = 0.02, 0.13
+        min_rad, max_rad = 0.05, 0.15
     else:
         min_rad, max_rad = perturb_bounds
     taskfile = h5py.File(taskfname, 'w')
@@ -326,7 +363,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
             dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_examples))
             with dhm_utils.suppress_stdout():
                 taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts,
-                                                        min_rad=min_rad, max_rad=max_rad)
+                                                        min_rad=min_rad, max_rad=max_rad, rotation=np.pi/6)
         print ''
     except:
         print 'encountered exception', sys.exc_info()
