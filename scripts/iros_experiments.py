@@ -3,8 +3,12 @@ import argparse, h5py, do_task, sys, dhm_utils, shutil, os
 import os.path as osp
 import IPython as ipy
 import numpy as np
+import math
+import cloud
+import cPickle as cp
 
 from rapprentice import clouds
+from rapprentice.colorize import colorize
 from pdb import pm, set_trace
 
 try:
@@ -22,7 +26,7 @@ except:
 DS_SIZE = 0.03
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
-def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
+def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None, animate=False):
     """
     generates a bootstrapping tree
     taskfile has the training examples to use
@@ -42,7 +46,7 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     results = []
     for i in range(burn_in):
         dhm_utils.one_l_print('doing burn in {}/{}'.format(i, burn_in))
-        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname))
+        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate))
         results.append(res)
         task_ctr += 1                        
     for i in range(max(tree_sizes)):
@@ -50,13 +54,13 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
         if i in tree_sizes:
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
-        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
+        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname, animate))
         results.append(res)
         task_ctr += 1
     print 'success rate', sum(results)/float(len(results))
     return sum(results)/float(len(results))
 
-def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
+def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate)):
     """
     runs a knot-tie attempt for task_id (taken from taskfile
     possible actions are the expert demonstrations in actionfile
@@ -71,7 +75,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=False, warp_root=True)
+    task_params = TaskParameters(action_fname, init_xyz, animate=animate, warp_root=True)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -88,6 +92,52 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
         finally:
             bootf.close()
     return task_results['success']
+
+
+class CloudParams:
+    num_batches     = None
+    start_batch_num = None
+    end_batch_num   = None
+    results_fname   = None
+    env             = 'RSS3'
+    vol             = 'iros_dat'
+    core_type       = 'f2'
+
+def run_tests_on_cloud(task_fname, action_fname, cloud_params):
+    """
+    make sure that task_fname and action_fname are available on the volume in the cloud.
+    """
+    taskfile   = h5py.File(task_fname, 'r')
+    ntasks     = len(taskfile.keys())
+    taskfile.close()
+    cmd_params = [(task_fname, i, action_fname, "", False) for i in xrange(ntasks)]
+    
+    ntests     = len(cmd_params)
+    batch_size = int(math.ceil(ntests/(cloud_params.num_batches+0.0)))
+
+    batch_edges = batch_size*np.array(xrange(cloud_params.num_batches))[cloud_params.start_batch_num : cloud_params.end_batch_num]
+    
+    all_succ = []
+    for i in xrange(len(batch_edges)):
+        if i==len(batch_edges)-1:
+            cmds = cmd_params[batch_edges[i]:]
+        else:
+            cmds = cmd_params[batch_edges[i]:min(batch_edges[i+1], len(cmd_params))]
+        print colorize("calling on cloud..", "yellow", True)
+        try:
+            jids = cloud.map(run_example, cmds, _vol=cloud_params.vol, _env=cloud_params.env, _type=cloud_params.core_type)
+            succ = cloud.result(jids)
+            print colorize("got results for batch %d/%d "%(i, len(batch_edges)), "green", True)
+            all_succ += succ
+        except Exception as e:
+            print "Found exception %s. Not saving data for this demo."%e
+
+    with open(cloud_params.results_fname, 'w') as f:
+        cp.dump(all_succ, f)
+    
+    
+
+
 
 def setup_bootstrap_file(action_fname, bootstrap_fname):
     """
@@ -276,7 +326,7 @@ def main():
             raise
     except:
         gen_task_file(task_fname, 200, act_fname)
-    if args.burn_in:
+    if args.burn_in is not None:
         burn_in = args.burn_in
     else:
         burn_in = 40
@@ -284,7 +334,12 @@ def main():
         tree_sizes = args.tree_sizes
     else:
         tree_sizes = None
-    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes)
+    success_rate = run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes, animate=args.animate)
+    import cPickle as cp
+    res_fname = osp.join(boot_dir, 'res.cp')
+    with open(res_fname, 'w') as f:
+        cp.dump({'success_rate':success_rate, 'args':args}, f)
+    return success_rate
 
 
 def parse_arguments():
@@ -301,6 +356,7 @@ def parse_arguments():
                         help="The file that contains the original (probably human) demonstrations.")
     parser.add_argument("bootstrapping_directory", type=str,
                         help="The directory that contains or will contain the learned bootstrapped h5 files.")
+    parser.add_argument("--animate", action='store_true', help='If included, then it will show the animation')
     parser.add_argument("--burn_in", type=int, default=None,
                         help="The number of burn-in iterations to run. The burn-in iterations only uses original segments")
     parser.add_argument("--tree_sizes", type=int, nargs="+", default=None,

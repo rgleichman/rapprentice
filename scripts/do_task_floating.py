@@ -301,7 +301,7 @@ def registration_cost(xyz0, xyz1):
     #plt.scatter(scaled_xyz1[:,0], scaled_xyz1[:,1], c='b' )
     #plt.show()
 
-    print xyz0.shape, xyz1.shape
+    #print xyz0.shape, xyz1.shape
     f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10, rot_reg=1e-3)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)   
     return cost
