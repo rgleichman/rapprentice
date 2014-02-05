@@ -257,7 +257,7 @@ def exec_traj_sim(lr_traj, animate):
 
 #TODO: possibly memoize
 #@func_utils.once
-def get_downsampled_clouds(values, DS_SIZE=0.025):
+def get_downsampled_clouds(values, DS_SIZE):
     cloud_list = []
     shapes = []
     for seg in values:
@@ -441,8 +441,8 @@ def do_single_task(task_params):
     animate       = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = auto_choose
-    knot = "any"
-    
+    knot = "K3a1"
+
     ### Setup ###
     demofile = setup_and_return_action_file(action_file, task_params.cloud_xyz, animate=animate)
 
@@ -638,8 +638,8 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     redprint("Acquire point cloud")
     move_sim_arms_to_side()
 
-    new_xyz_upsampled = Globals.sim.observe_cloud(upsample=120)
-    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.025)
+    new_xyz_upsampled = Globals.sim.observe_cloud(upsample=300)
+    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.01)
 
     segment = choose_segment(demofile, new_xyz, 7)
     if segment is None:
@@ -682,7 +682,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     knot_name  = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
     found_knot = False
     if knot_name is not None:
-        if knot_name == knot or knot == "any":
+        if knot_name == knot:
             redprint("Identified knot: %s. Success!" % knot_name)
             found_knot = True
         else:

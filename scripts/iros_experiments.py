@@ -19,7 +19,7 @@ except:
     from do_task import do_single_task_floating as do_single_task
 
 
-DS_SIZE = .025
+DS_SIZE = .01
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
 def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
