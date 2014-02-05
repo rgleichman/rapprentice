@@ -177,7 +177,7 @@ def test_bootrun(bootrun_name='boot_1', tree_sizes=[30,60,90,120]):
         cloud_params.core_type       = 'f2'
         
         print colorize("running tests for file: %s"%test_action_fnames[i], "magenta", True)
-        run_tests_on_cloud(cloud_params, True)
+        run_tests_on_cloud(cloud_params, False)
 
 
 def setup_bootstrap_file(action_fname, bootstrap_fname):
