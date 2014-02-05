@@ -650,9 +650,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     redprint("Acquire point cloud")
     move_sim_arms_to_side()
 
-    new_xyz_upsampled = Globals.sim.observe_cloud(upsample=300)
-    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.02)
-    print ">>>>>>>>>>>>>> ", new_xyz.shape
+    new_xyz = Globals.sim.observe_cloud(upsample=110)
 
     segment = choose_segment(demofile, new_xyz, 5)
     if segment is None:
