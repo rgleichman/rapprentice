@@ -294,6 +294,14 @@ def find_closest_manual(demofile, _new_xyz):
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
+    
+    #import matplotlib.pylab as plt
+    #plt.scatter(scaled_xyz0[:,0], scaled_xyz0[:,1], c='r' )
+    #plt.hold(True)
+    #plt.scatter(scaled_xyz1[:,0], scaled_xyz1[:,1], c='b' )
+    #plt.show()
+
+    print xyz0.shape, xyz1.shape
     f, g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, n_iter=10, rot_reg=1e-3)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)   
     return cost
@@ -316,16 +324,19 @@ def auto_choose(actionfile, new_xyz, nparallel=-1):
 
     if nparallel != -1:
         before = time.time()
-        costs  = Parallel(n_jobs=nparallel, verbose=50)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
+        redprint("auto choose parallel..")
+        costs  = Parallel(n_jobs=nparallel, verbose=0)(delayed(registration_cost)(ddata[1]['cloud_xyz'][:], new_xyz) for ddata in demo_data)
         after  = time.time()
         print "Parallel registration time in seconds =", after - before
     else:
         costs = []
+        redprint("auto choose sequential..")
         for i, ddata in enumerate(demo_data):
             costs.append(registration_cost(ddata[1]['cloud_xyz'][:], new_xyz))
             print(("tps-cost completed %i/%i" % (i + 1, len(demo_data))))
 
     ibest = np.argmin(costs)
+    redprint ("auto choose returning..")
     return demo_data[ibest][0]
 
 
@@ -440,7 +451,7 @@ def do_single_task(task_params):
     animate       = task_params.animate
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = auto_choose
-    knot = "K3a1"
+    knot = "any"
 
     ### Setup ###
     demofile = setup_and_return_action_file(action_file, task_params.cloud_xyz, animate=animate)
@@ -664,7 +675,8 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     move_sim_arms_to_side()
 
     new_xyz_upsampled = Globals.sim.observe_cloud(upsample=300)
-    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.01)
+    new_xyz           = clouds.downsample(new_xyz_upsampled, 0.02)
+    print ">>>>>>>>>>>>>> ", new_xyz.shape
 
     segment = choose_segment(demofile, new_xyz, 5)
     if segment is None:

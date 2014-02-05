@@ -19,7 +19,7 @@ except:
     from do_task import do_single_task_floating as do_single_task
 
 
-DS_SIZE = .025
+DS_SIZE = 0.03
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
 def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
@@ -94,6 +94,7 @@ def setup_bootstrap_file(action_fname, bootstrap_fname):
     copies over the relevant fields of action file to a bootstrap_file so that we can use the 
     resulting file for run_example
     """
+    print action_fname, bootstrap_fname
     actfile = h5py.File(action_fname, 'r')
     bootfile = h5py.File(bootstrap_fname, 'w')
     for seg_name, seg_info in actfile.iteritems():
@@ -257,26 +258,56 @@ def run_example_test():
     task_fname = 'data/test_tasks.h5'
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 5, tree_sizes = [0])
 
+
 def main():
-    boot_fname = 'data/test_bootstrapping_2/test_bootstrapping.h5'
+    args = parse_arguments()
+    boot_dir = args.bootstrapping_directory
+    #TODO  Should the boot_fname be different?
+    boot_fname = osp.join(boot_dir, 'test_bootstrapping.h5')
     try:
         os.remove(boot_fname)
     except:
         pass
-    act_fname = 'data/actions.h5'
-    task_fname = 'data/test_tasks.h5'
+    act_fname = args.actions_file
+    task_fname = osp.join(boot_dir, 'tasks.h5')
     try:
         good_task_file = check_task_file(task_fname)
         if not good_task_file:
             raise
     except:
         gen_task_file(task_fname, 200, act_fname)
-    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[10])
+    if args.burn_in:
+        burn_in = args.burn_in
+    else:
+        burn_in = 40
+    if args.tree_sizes:
+        tree_sizes = args.tree_sizes
+    else:
+        tree_sizes = None
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes)
+
+
+def parse_arguments():
+    import argparse
+
+    usage = """
+    Run {0} --help for a list of arguments
+    Warning: This may modify existing hdf5 files.
+    The task file should be in bootstrapping_directory/tasks.h5
+    """.format(sys.argv[0])
+
+    parser = argparse.ArgumentParser(usage=usage)
+    parser.add_argument("actions_file", type=str,
+                        help="The file that contains the original (probably human) demonstrations.")
+    parser.add_argument("bootstrapping_directory", type=str,
+                        help="The directory that contains or will contain the learned bootstrapped h5 files.")
+    parser.add_argument("--burn_in", type=int, default=None,
+                        help="The number of burn-in iterations to run. The burn-in iterations only uses original segments")
+    parser.add_argument("--tree_sizes", type=int, nargs="+", default=None,
+                        help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
+    args = parser.parse_args()
+    print "args =", args
+    return args
 
 if __name__ == "__main__":
-    #argument, directory for bootstrapping stuff
-    #argument, actions file
-    #tasks file is in bootstrapping_dir/tasks.h5
-    #optional args for burn in and tree sizes
-
     main()
