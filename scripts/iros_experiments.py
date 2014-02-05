@@ -19,7 +19,7 @@ except:
     from do_task import do_single_task_floating as do_single_task
 
 
-DS_SIZE = .01
+DS_SIZE = 0.03
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
 def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None):
@@ -66,7 +66,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=False, warp_root=False)
+    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=True)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -89,6 +89,7 @@ def setup_bootstrap_file(action_fname, bootstrap_fname):
     copies over the relevant fields of action file to a bootstrap_file so that we can use the 
     resulting file for run_example
     """
+    print action_fname, bootstrap_fname
     actfile = h5py.File(action_fname, 'r')
     bootfile = h5py.File(bootstrap_fname, 'w')
     for seg_name, seg_info in actfile.iteritems():
@@ -265,7 +266,7 @@ def main():
         if not good_task_file:
             raise
     except:
-        gen_task_file(task_fname, 200, act_fname)
+        gen_task_file(task_fname, 20, act_fname)
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[20])
 
 if __name__ == "__main__":
