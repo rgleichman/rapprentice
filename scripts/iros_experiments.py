@@ -95,48 +95,89 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate)):
 
 
 class CloudParams:
-    num_batches     = None
-    start_batch_num = None
-    end_batch_num   = None
-    results_fname   = None
-    env             = 'RSS3'
-    vol             = 'iros_dat'
-    core_type       = 'f2'
+    def __init__(self):
+        self.cmd_params      = None
+        self.num_batches     = None
+        self.start_batch_num = None
+        self.end_batch_num   = None
+        self.results_fname   = None
+        self.env             = 'RSS3'
+        self.vol             = 'iros_dat'
+        self.core_type       = 'f2'
 
-def run_tests_on_cloud(task_fname, action_fname, cloud_params):
+def create_test_params(task_fname, action_fname):
     """
-    make sure that task_fname and action_fname are available on the volume in the cloud.
+    The list of params returned by this is to be mapped to run_example
     """
     taskfile   = h5py.File(task_fname, 'r')
     ntasks     = len(taskfile.keys())
     taskfile.close()
     cmd_params = [(task_fname, i, action_fname, "", False) for i in xrange(ntasks)]
+    return cmd_params
+
+
+def run_tests_on_cloud(cloud_params, do_local=False):
+    """
+    make sure that task_fname and action_fname are available on the volume in the cloud.
     
-    ntests     = len(cmd_params)
+    do_local : if true, the 'map' is done locally.
+    """
+    
+    ntests     = len(cloud_params.cmd_params)
     batch_size = int(math.ceil(ntests/(cloud_params.num_batches+0.0)))
 
     batch_edges = batch_size*np.array(xrange(cloud_params.num_batches))[cloud_params.start_batch_num : cloud_params.end_batch_num]
-    
+
     all_succ = []
     for i in xrange(len(batch_edges)):
         if i==len(batch_edges)-1:
-            cmds = cmd_params[batch_edges[i]:]
+            cmds = cloud_params.cmd_params[batch_edges[i]:]
         else:
-            cmds = cmd_params[batch_edges[i]:min(batch_edges[i+1], len(cmd_params))]
-        print colorize("calling on cloud..", "yellow", True)
+            cmds = cloud_params.cmd_params[batch_edges[i]:min(batch_edges[i+1], ntests)]
+        print colorize("calling on cloud : batch [%d/%d] "%(i, len(batch_edges)), "yellow", True)
         try:
-            jids = cloud.map(run_example, cmds, _vol=cloud_params.vol, _env=cloud_params.env, _type=cloud_params.core_type)
-            succ = cloud.result(jids)
-            print colorize("got results for batch %d/%d "%(i, len(batch_edges)), "green", True)
+            if not do_local:
+                jids = cloud.map(run_example, cmds, _vol=cloud_params.vol, _env=cloud_params.env, _type=cloud_params.core_type)
+                succ = cloud.result(jids)
+                print colorize("\t got results for batch %d/%d "%(i, len(batch_edges)), "green", True)
+            else:
+                succ = map(run_example, cmds)
             all_succ += succ
         except Exception as e:
             print "Found exception %s. Not saving data for this demo."%e
 
     with open(cloud_params.results_fname, 'w') as f:
+        print colorize("\t\t saved results in : %s"%cloud_params.results_fname, "green")
         cp.dump(all_succ, f)
-    
-    
 
+
+def test_bootrun(bootrun_name='boot_1', tree_sizes=[30,60,90,120]):
+    """
+    @ res_dir       : the directory where the results from the test runs will be saved.
+                      the saved results will be like: 
+                         res_dir/<bootrun_name>_<tree_size>_res.cp
+    @ bootrun_name  : the directory holding the actions from the bootstrap runs.
+    @ tree_sizes    : the sizes of bootstrap trees to run tests on.
+    """
+    data_dir           = osp.join(os.getenv("BOOTSTRAPPING_DIR"), "data")
+    task_fname         = osp.join(data_dir, "eval_set.h5")
+    test_action_fnames = [osp.join(data_dir, bootrun_name, 'test_bootstrapping_%d.h5'%s) for s in tree_sizes]
+    result_fnames      = [osp.join(data_dir, "test_results", "%s_%d_result.cp"%(bootrun_name, s)) for s in tree_sizes]
+
+    for i in xrange(len(tree_sizes)):
+        cmd_params      = create_test_params(task_fname, test_action_fnames[i])
+        cloud_params    =  CloudParams()
+        cloud_params.cmd_params      = cmd_params
+        cloud_params.num_batches     = 1
+        cloud_params.start_batch_num = 0
+        cloud_params.end_batch_num   = 1 ## exclusive
+        cloud_params.results_fname   = result_fnames[i]
+        cloud_params.env             = 'RSS3'
+        cloud_params.vol             = 'iros_dat'
+        cloud_params.core_type       = 'f2'
+        
+        print colorize("running tests for file: %s"%test_action_fnames[i], "magenta", True)
+        run_tests_on_cloud(cloud_params, False)
 
 
 def setup_bootstrap_file(action_fname, bootstrap_fname):
@@ -402,5 +443,16 @@ def parse_arguments():
     print "args =", args
     return args
 
+def testing_main():
+    import argparse
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bootstrap_name", type=str,
+                        help="name of the bootstrap directory like : boot_1, boot_2, ...")
+    args = parser.parse_args()
+    test_bootrun(args.bootstrap_name)
+
+
 if __name__ == "__main__":
-    main()
+    #main()
+    testing_main()
