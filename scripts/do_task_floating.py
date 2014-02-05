@@ -22,7 +22,7 @@ from rapprentice import registration, colorize, \
     animate_traj, ros2rave, plotting_openrave, task_execution, \
     planning, func_utils, resampling, rope_initialization, clouds, ropesim_floating
 from rapprentice import math_utils as mu
-from rapprentice import knot_identification
+from knot_classifier import isKnot as is_knot
 
 import trajoptpy
 import openravepy
@@ -678,17 +678,8 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
             break
 
     Globals.sim.settle(animate=animate)
-    knot_name  = knot_identification.identify_knot(Globals.sim.rope.GetControlPoints())
-    found_knot = False
-    if knot_name is not None:
-        if knot_name == knot or knot == "any":
-            redprint("Identified knot: %s. Success!" % knot_name)
-            found_knot = True
-        else:
-            redprint("Identified knot: %s, but expected %s. Continuing." % (knot_name, knot))
-    else:
-        redprint("Not a knot. Continuing.")
-
+    rope_nodes = Globals.sim.observe_cloud()
+    found_knot = is_knot(rope_nodes)
     redprint("Segment %s result: %s" % (segment, success))
     seg_info_hash = {'parent': segment, 'hmats': warped_ee_traj, 'cloud_xyz': new_xyz, 'cmat': cmat}
     return {'found_knot': found_knot, 'seg_info':seg_info_hash}
