@@ -167,9 +167,8 @@ def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15, rotati
     rope_nodes = rope_initialization.find_path_through_point_cloud( new_xyz,
                                                                     perturb_peak_dist=perturb_radius,
                                                                     num_perturb_points=perturb_points)
-    #rand_theta = np.pi*(np.random.rand() - 0.5)
     if rotation:
-        rand_theta = np.random.randn()
+        rand_theta = rotation*np.random.rand()
         rope_nodes = rotate_about_median(rope_nodes, rand_theta)
         rope_nodes = place_in_feasible_region(rope_nodes)
     return rope_nodes
@@ -555,6 +554,8 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
 
 compare_bootstrap_correspondences = False# set to true and call with warp_root=False to compare warping derived trajectories to warping initial with bootstrapped correspondences
 
+no_correspondences = False
+
 def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False):
     """
     @seg_info  : segment information from the h5 file for the segment with least tps fit cost.
@@ -577,16 +578,19 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     root_xyz      = root_segment['cloud_xyz'][:]
     seg_root_cmat = seg_info['cmat'][:]
     if warp_root:
-
-        
-
         scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
-    
 
-        ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ## TODO : MAKE SURE THAT THE SCALING IS BEING DONE CORRECTLY HERE:
-        ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!        
-        f_root2new, _, corr_new2root = registration.tps_rpm_bootstrap(scaled_root_xyz, scaled_seg_xyz, scaled_new_xyz, seg_root_cmat, 
+        if no_correspondences:
+            f_root2new, _, corr_new2root = registration.tps_rpm_bij(scaled_root_xyz, scaled_new_xyz,
+                                                                          plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
+                                                                          rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
+                                                                          reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz)
+        else:
+
+            ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ## TODO : MAKE SURE THAT THE SCALING IS BEING DONE CORRECTLY HERE:
+            ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!        
+            f_root2new, _, corr_new2root = registration.tps_rpm_bootstrap(scaled_root_xyz, scaled_seg_xyz, scaled_new_xyz, seg_root_cmat, 
                                                                       plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
                                                                       rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
                                                                       reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz)
