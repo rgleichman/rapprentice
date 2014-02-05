@@ -46,8 +46,8 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     for i in range(max(tree_sizes)):
         dhm_utils.one_l_print('doing bootstrapping {}/{}'.format(i, max(tree_sizes)))
         if i in tree_sizes:
-            bootrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
-            shutil.copyfile(bootstrap_fname, bootstap_i_fname)
+            bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
+            shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
         _ = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname))
     return True
 
@@ -66,7 +66,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=True, warp_root=False)     
+    task_params = TaskParameters(action_fname, init_xyz, animate=False, warp_root=False)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -130,8 +130,9 @@ def create_bootstrap_item(outfile, cloud_xyz, root_seg, parent, children, hmats,
     if update_parent:
         parent_children = outfile[parent]['children'][()]
         del outfile[parent]['children']
-        if not parent_children: parent_children = []
-        parent_children.append(seg_name)
+        if parent_children == 0:
+            parent_children = []
+        parent_children = np.append(parent_children, [seg_name])
         outfile[parent]['children'] = parent_children
     if other_items:
         for k, v in other_items.iteritems():
@@ -161,7 +162,7 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
                 success = False
             for lr in 'lr':
                 if '{}_gripper_joint'.format(lr) not in bootf[seg_name]:
-                    print 'boostrap file {} root segment {} missing {}_gripper_joint'.format(boostrap_fname, seg_name, lr)
+                    print 'boostrap file {} root segment {} missing {}_gripper_joint'.format(bootstrap_fname, seg_name, lr)
                     success = False
         for seg_name, seg_info in bootf.iteritems():
             seg_name = str(seg_name)
@@ -170,24 +171,24 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
                     print 'bootstrap file {} segment {} missing key {}'.format(bootstrap_fname, seg_name, k)
             for lr in 'lr':
                 if lr not in seg_info['hmats']:
-                    print 'boostrap file {} segment {} missing {} hmats'.format(boostrap_fname, seg_name, lr)
+                    print 'boostrap file {} segment {} missing {} hmats'.format(bootstrap_fname, seg_name, lr)
                     success = False
             parent = str(seg_info['parent'][()])
             if parent not in bootf:
-                print 'boostrap file {} missing parent {} for segment {}'.format(boostrap_fname, parent, seg_name)
+                print 'boostrap file {} missing parent {} for segment {}'.format(bootstrap_fname, parent, seg_name)
                 success = False
             parent_children = bootf[parent]['children'][()]
             if parent != seg_name and seg_name not in parent_children:
-                print 'boostrap file {} parent {} does not have pointer to child {}'.format(boostrap_fname, parent, seg_name)
+                print 'boostrap file {} parent {} does not have pointer to child {}'.format(bootstrap_fname, parent, seg_name)
                 success = False
             root_seg = str(seg_info['root_seg'][()])
             if root_seg not in bootf:
-                print 'boostrap file {} missing root_seg {} for segment {}'.format(boostrap_fname, root_seg, seg_name)
+                print 'boostrap file {} missing root_seg {} for segment {}'.format(bootstrap_fname, root_seg, seg_name)
                 success = False
             root_n = bootf[root_seg]['cloud_xyz'][:].shape[0]
             seg_m = seg_info['cloud_xyz'][:].shape[0]
             if seg_info['cmat'][:].shape != (root_n, seg_m):
-                print 'boostrap file {} cmat for segment {} has wrong dimension'.format(boostrap_fname, root_seg, seg_name)
+                print 'boostrap file {} cmat for segment {} has wrong dimension'.format(bootstrap_fname, root_seg, seg_name)
                 print 'is', seg_info['cloud_xyz'][:].shape[0], 'should be', (root_n, seg_m)
                 success = False
     except:
@@ -198,7 +199,7 @@ def check_bootstrap_file(bootstrap_fname, orig_fname):
         raise
     return success
 
-def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=5):
+def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num_perturb_pts=7):
     """
     draw num_examples states from the initial state distribution defined by
     do_task.sample_rope_state
@@ -209,14 +210,14 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
     if not perturb_bounds:
         min_rad, max_rad = 0.02, 0.13
     else:
-        min_rad, max_rad = pertub_bounds
+        min_rad, max_rad = perturb_bounds
     taskfile = h5py.File(taskfname, 'w')
     actionfile = h5py.File(actionfname, 'r')
     try:
         for i in range(num_examples):
             dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_examples))
             with dhm_utils.suppress_stdout():
-                taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts, 
+                taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts,
                                                         min_rad=min_rad, max_rad=max_rad)
         print ''
     except:
@@ -251,3 +252,26 @@ def run_example_test():
     task_fname = 'data/test_tasks.h5'
     return run_bootstrap(task_fname, act_fname, boot_fname, burn_in = 5, tree_sizes = [0])
 
+def main():
+    boot_fname = 'data/test_bootstrapping/test_bootstrapping.h5'
+    try:
+        os.remove(boot_fname)
+    except:
+        pass
+    act_fname = 'data/actions.h5'
+    task_fname = 'data/test_tasks.h5'
+    try:
+        good_task_file = check_task_file(task_fname)
+        if not good_task_file:
+            raise
+    except:
+        gen_task_file(task_fname, 200, act_fname)
+    return run_bootstrap(task_fname, act_fname, boot_fname, burn_in=1, tree_sizes=[20])
+
+if __name__ == "__main__":
+    #argument, directory for bootstrapping stuff
+    #argument, actions file
+    #tasks file is in bootstrapping_dir/tasks.h5
+    #optional args for burn in and tree sizes
+
+    main()
