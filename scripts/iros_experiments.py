@@ -318,7 +318,7 @@ def gen_rot_sequence_task_file(taskfname, actionfname):
     burnin_length = 50
     num_samples = 200
     theta_vals = np.linspace(min_theta, max_theta, num_samples - burnin_length)
-    min_rad, max_rad = 0.02, 0.13
+    min_rad, max_rad = 0.1, 0.1
     num_perturb_pts = 7
     taskfile = h5py.File(taskfname, 'w')
     actionfile = h5py.File(actionfname, 'r')
