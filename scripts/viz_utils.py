@@ -62,23 +62,26 @@ def get_long_path(h5py_fname, plen):
 def get_fwarp(xyz0, xyz1):
     scaled_xyz0, xyz0_params = registration.unit_boxify(xyz0)
     scaled_xyz1, xyz1_params = registration.unit_boxify(xyz1)
-    fwarp, _, _  = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, plotting=False,
+    fwarp, _, corr_nm  = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, plotting=False,
                                             rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
                                             reg_init=10, reg_final=.01, old_xyz=xyz0, new_xyz=xyz1,
                                             return_corr=True)
 
-    return registration.unscale_tps(fwarp, xyz0_params, xyz1_params)
+    return registration.unscale_tps(fwarp, xyz0_params, xyz1_params), corr_nm
 
 
 def get_f_path(h5py_fname, path):
     h5py_file = h5py.File(h5py_fname)
     fs = []
+    corrs = []
     for i in xrange(1, len(path)):
         src  = h5py_file[path[i-1]]['cloud_xyz'][()]
         targ = h5py_file[path[i]]['cloud_xyz'][()]
-        fs.append(get_fwarp(src, targ))
+        f, corr = get_fwarp(src, targ)
+        fs.append(f)
+        corrs.append(corr)
     h5py_file.close()
-    return fs
+    return fs, corrs
 
 
 def draw_grid(f, mins, maxes, xres = .1, yres = .1, zres = -1):
@@ -120,12 +123,16 @@ def draw_grid(f, mins, maxes, xres = .1, yres = .1, zres = -1):
             xyz[:,2] = z
             lines.append(f(xyz))
 
-    for line in lines:
-        plt.plot(line[:,0], line[:,1], '0.75')
+    for i,line in enumerate(lines):
+        if i==2 or i==4:
+            plt.plot(line[:,0], line[:,1], '0.0', lw=2.5)
+        else:
+            plt.plot(line[:,0], line[:,1], '0.4')
+            
 
 def plot_correspondences(xyz, corr_xyz):
     for i in xrange(len(xyz)):
-        plt.plot([xyz[i,0], corr_xyz[i,0]], [xyz[i,1], corr_xyz[i,1]], '0.2')
+        plt.plot([xyz[i,0], corr_xyz[i,0]], [xyz[i,1], corr_xyz[i,1]], '0.75')
 
 
 class chain_fs:
@@ -139,33 +146,106 @@ class chain_fs:
         return wpts
 
 
+def get_f_path_bootstrap(h5py_fname, path):
+    h5py_file = h5py.File(h5py_fname)
+
+    root_xyz                 = h5py_file[path[0]]['cloud_xyz'][()]
+    scaled_root, root_params = registration.unit_boxify(root_xyz)
+
+    corr_prev = np.eye(len(root_xyz))
+    path = path
+
+    for i in xrange(1, len(path)):
+        ii   = h5py_file[path[i-1]]['cloud_xyz'][()]
+        targ = h5py_file[path[i]]['cloud_xyz'][()]
+        
+        scaled_ii, ii_params     = registration.unit_boxify(ii)
+        scaled_targ, targ_params = registration.unit_boxify(targ)
+
+        fboot, _, corr_prev = registration.tps_rpm_bootstrap(scaled_root, scaled_ii, scaled_targ, corr_prev, n_iter=50, reg_init=10, reg_final=0.01)
+        fboot =  registration.unscale_tps(fboot, root_params, targ_params)
+    return fboot, None    
+
+
+
 def plot_chained_f(path, h5py_fname):
     h5py_file = h5py.File(h5py_fname)
     init_xyz  = h5py_file[path[0]]['cloud_xyz'][()]
     final_xyz = h5py_file[path[-1]]['cloud_xyz'][()]
+    penul_xyz = h5py_file[path[-2]]['cloud_xyz'][()]
     h5py_file.close()
 
-    plt.subplot(1,2,1)
-    fdirect          = get_fwarp(init_xyz, final_xyz)
+    plt.subplot(1,4,1)
+    fdirect          = get_fwarp(init_xyz, final_xyz)[0]
     direct_warp_xyz  = fdirect.transform_points(init_xyz)
     plt.hold(True)
     plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
     plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
     plt.scatter(direct_warp_xyz[:,0], direct_warp_xyz[:,1], c='g', lw=0)
-    draw_grid(fdirect.transform_points, np.min(final_xyz, axis=0), np.max(final_xyz, axis=0))
+    draw_grid(fdirect.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
     plot_correspondences(init_xyz, direct_warp_xyz)
     #plt.show(block=False)
     
-    plt.subplot(1,2,2)
-    fchain  = chain_fs(get_f_path(h5py_fname, path))
+    plt.subplot(1,4,2)
+    fs, corrs = get_f_path(h5py_fname, path)
+    fchain          = chain_fs(fs)
     chain_warp_xyz  = fchain.transform_points(init_xyz)
     plt.hold(True)
     plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
     plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
     plt.scatter(chain_warp_xyz[:,0], chain_warp_xyz[:,1], c='g', lw=0)
-    draw_grid(fchain.transform_points, np.min(final_xyz, axis=0), np.max(final_xyz, axis=0))
+    draw_grid(fchain.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
     plot_correspondences(init_xyz, chain_warp_xyz)
+    
+
+    """
+    plt.subplot(1,3,3)    
+    ftps = registration.fit_ThinPlateSpline(init_xyz, chain_warp_xyz, bend_coef = 0.1, rot_coef = (1e-4,1e-4,1e-1))
+    tps_warp_xyz  = ftps.transform_points(init_xyz)
+    plt.hold(True)
+    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
+    plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
+    plt.scatter(tps_warp_xyz[:,0], tps_warp_xyz[:,1], c='g', lw=0)
+    draw_grid(ftps.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
+    plot_correspondences(init_xyz, tps_warp_xyz)
+    """
+    
+    """
+    plt.subplot(1,3,3)
+    scaled_i, xyz0_params = registration.unit_boxify(init_xyz)
+    scaled_ii, p_params = registration.unit_boxify(penul_xyz)
+    scaled_f, xyz1_params = registration.unit_boxify(final_xyz)
+    fboot, _,_ = registration.tps_rpm_bootstrap(scaled_i, scaled_ii, scaled_f, reduce(np.dot, corrs[:-1]), n_iter=50, reg_init=10, reg_final=0.01)
+    fboot =  registration.unscale_tps(fboot, xyz0_params, xyz1_params)
+ 
+    boot_warp_xyz  = fboot.transform_points(init_xyz)
+    plt.hold(True)
+    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
+    plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
+    plt.scatter(boot_warp_xyz[:,0], boot_warp_xyz[:,1], c='g', lw=0)
+    draw_grid(fboot.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
+    plot_correspondences(init_xyz, boot_warp_xyz)
+    """
+    
+ 
+    plt.subplot(1,4,3)    
+    fboot = get_f_path_bootstrap(h5py_fname, path)[0]
+    boot_warp_xyz  = fboot.transform_points(init_xyz)
+    plt.hold(True)
+    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
+    plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
+    plt.scatter(boot_warp_xyz[:,0], boot_warp_xyz[:,1], c='g', lw=0)
+    draw_grid(fboot.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
+    plot_correspondences(init_xyz, boot_warp_xyz)
+    
+    plt.subplot(1,4,4)
+    plt.hold(True)
+    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
+    draw_grid(lambda x: x, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
     plt.show()
+    
+    
+    
     
     
 
