@@ -45,12 +45,12 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     shutil.copyfile(bootstrap_fname, bootstrap_orig)
     results = []
     for i in range(burn_in):
-        dhm_utils.one_l_print('doing burn in {}/{}'.format(i, burn_in))
+        print 'doing burn in {}/{}'.format(i, burn_in)
         res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate))
         results.append(res)
         task_ctr += 1                        
     for i in range(max(tree_sizes)):
-        dhm_utils.one_l_print('doing bootstrapping {}/{}'.format(i, max(tree_sizes)))
+        print 'doing bootstrapping {}/{}'.format(i, max(tree_sizes))
         if i in tree_sizes:
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
@@ -342,7 +342,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
     writes results to fname
     """
     if not perturb_bounds:
-        min_rad, max_rad = 0.05, 0.15
+        min_rad, max_rad = 0.1, 0.1
     else:
         min_rad, max_rad = perturb_bounds
     taskfile = h5py.File(taskfname, 'w')
@@ -352,7 +352,7 @@ def gen_task_file(taskfname, num_examples, actionfname, perturb_bounds=None, num
             dhm_utils.one_l_print('Creating State {}/{}'.format(i, num_examples))
             with dhm_utils.suppress_stdout():
                 taskfile[str(i)] = sample_rope_state(actionfile, perturb_points=num_perturb_pts,
-                                                        min_rad=min_rad, max_rad=max_rad, rotation=np.pi/6)
+                                                        min_rad=min_rad, max_rad=max_rad, rotation=np.pi/4)
         print ''
     except:
         print 'encountered exception', sys.exc_info()
@@ -454,5 +454,5 @@ def testing_main():
 
 
 if __name__ == "__main__":
-    #main()
-    testing_main()
+    main()
+    #testing_main()
