@@ -26,7 +26,7 @@ except:
 DS_SIZE = 0.03
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
-def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None, animate=False):
+def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None, animate=False, no_cmat=False):
     """
     generates a bootstrapping tree
     taskfile has the training examples to use
@@ -46,7 +46,7 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     results = []
     for i in range(burn_in):
         print 'doing burn in {}/{}'.format(i, burn_in)
-        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate))
+        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate, no_cmat))
         results.append(res)
         task_ctr += 1                        
     for i in range(max(tree_sizes)):
@@ -54,13 +54,13 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
         if i in tree_sizes:
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
-        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname, animate))
+        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname, animate, no_cmat))
         results.append(res)
         task_ctr += 1
     print 'success rate', sum(results)/float(len(results))
     return sum(results)/float(len(results))
 
-def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate)):
+def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no_cmat)):
     """
     runs a knot-tie attempt for task_id (taken from taskfile
     possible actions are the expert demonstrations in actionfile
@@ -75,7 +75,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate)):
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=animate, warp_root=False)
+    task_params = TaskParameters(action_fname, init_xyz, animate=animate, warp_root=True, no_cmat=no_cmat)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -423,7 +423,7 @@ def main():
         tree_sizes = args.tree_sizes
     else:
         tree_sizes = None
-    success_rate = run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes, animate=args.animate)
+    success_rate = run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes, animate=args.animate, no_cmat=args.no_cmat)
     import cPickle as cp
     res_fname = osp.join(boot_dir, 'res.cp')
     with open(res_fname, 'w') as f:
@@ -450,6 +450,7 @@ def parse_arguments():
                         help="The number of burn-in iterations to run. The burn-in iterations only uses original segments")
     parser.add_argument("--tree_sizes", type=int, nargs="+", default=None,
                         help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
+    parser.add_argument("--no_cmat", action='store_true')
     args = parser.parse_args()
     print "args =", args
     return args
@@ -475,3 +476,5 @@ def testing_main():
 if __name__ == "__main__":
     main()
     #testing_main()
+
+

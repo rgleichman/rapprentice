@@ -73,12 +73,14 @@ class RopeState:
         self.perturb_num_points = perturb_num_points
 
 class TaskParameters:
-    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5):
+    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5,
+                 no_cmat=False):
         self.action_file = action_file
         self.cloud_xyz = cloud_xyz
         self.animate = animate
         self.warp_root = warp_root
         self.max_steps_before_failure = max_steps_before_failure
+        self.no_cmat=no_cmat
 
 
 #init_rope_state_segment, perturb_radius, perturb_num_points
@@ -451,6 +453,7 @@ def do_single_task(task_params):
     max_steps_before_failure = task_params.max_steps_before_failure
     choose_segment = auto_choose
     knot = "any"
+    no_cmat = task_params.no_cmat
 
     ### Setup ###
     demofile = setup_and_return_action_file(action_file, task_params.cloud_xyz, animate=animate)
@@ -465,7 +468,7 @@ def do_single_task(task_params):
         print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        loop_result = loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=i)
+        loop_result = loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=i, no_cmat=no_cmat)
         if loop_result is not None:
             knot_result = loop_result['found_knot']
             loop_results.append(loop_result)
@@ -554,9 +557,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
 
 compare_bootstrap_correspondences = False# set to true and call with warp_root=False to compare warping derived trajectories to warping initial with bootstrapped correspondences
 
-no_correspondences = False
-
-def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False):
+def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False, no_cmat=False):
     """
     @seg_info  : segment information from the h5 file for the segment with least tps fit cost.
     @new_xyz   : point cloud of the rope in the test situation.
@@ -580,7 +581,8 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     if warp_root:
         scaled_root_xyz, root_params = registration.unit_boxify(root_xyz)
 
-        if no_correspondences:
+        if no_cmat:
+            print "not using cmat for correspondences"
             f_root2new, _, corr_new2root = registration.tps_rpm_bij(scaled_root_xyz, scaled_new_xyz,
                                                                           plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
                                                                           rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
@@ -657,7 +659,7 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     return (cmat, warped_ee_traj, miniseg_starts, miniseg_ends, {'r':rgrip_joints, 'l':lgrip_joints})
 
 
-def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None):
+def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None, no_cmat=False):
     """
     Do the body of the main task execution loop (ie. do a segment).
     Arguments:
@@ -680,7 +682,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
 
     new_xyz = Globals.sim.observe_cloud(upsample=110)
 
-    segment = choose_segment(demofile, new_xyz, -1)
+    segment = choose_segment(demofile, new_xyz, 7)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)
@@ -688,8 +690,9 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     seg_info      = demofile[segment]
     redprint("Getting warped trajectory...")
     cmat, warped_ee_traj, miniseg_starts, miniseg_ends, joint_traj = get_warped_trajectory(seg_info, new_xyz, demofile, 
-                                                                                     warp_root=task_params.warp_root,
-                                                                                     plot=task_params.animate)
+                                                                                           warp_root=task_params.warp_root,
+                                                                                           plot=task_params.animate,
+                                                                                           no_cmat=no_cmat)
     success = True
     redprint("executing segment trajectory...")
 
