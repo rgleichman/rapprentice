@@ -75,7 +75,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=animate, warp_root=True, no_cmat=no_cmat)
+    task_params = TaskParameters(action_fname, init_xyz, animate=animate, no_cmat=no_cmat)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:

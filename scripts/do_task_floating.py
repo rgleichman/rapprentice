@@ -73,7 +73,7 @@ class RopeState:
         self.perturb_num_points = perturb_num_points
 
 class TaskParameters:
-    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5,
+    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=True, max_steps_before_failure=5,
                  no_cmat=False):
         self.action_file = action_file
         self.cloud_xyz = cloud_xyz
@@ -584,9 +584,10 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
         if no_cmat:
             print "not using cmat for correspondences"
             f_root2new, _, corr_new2root = registration.tps_rpm_bij(scaled_root_xyz, scaled_new_xyz,
-                                                                          plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
-                                                                          rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
-                                                                          reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz)
+                                                                    plotting=5 if plot else 0, plot_cb=tpsrpm_plot_cb,
+                                                                    rot_reg=np.r_[1e-4, 1e-4, 1e-1], n_iter=50,
+                                                                    reg_init=10, reg_final=.01, old_xyz=root_xyz, new_xyz=new_xyz, 
+                                                                    return_corr=True)
         else:
 
             ## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
