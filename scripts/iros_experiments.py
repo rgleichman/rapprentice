@@ -4,7 +4,7 @@ import os.path as osp
 import IPython as ipy
 import numpy as np
 import math
-#import cloud
+import cloud
 import cPickle as cp
 
 from rapprentice import clouds
@@ -48,7 +48,7 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
         print 'doing burn in {}/{}'.format(i, burn_in)
         res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate, no_cmat))
         results.append(res)
-        task_ctr += 1                        
+        task_ctr += 1
     for i in range(max(tree_sizes)):
         print 'doing bootstrapping {}/{}'.format(i, max(tree_sizes))
         if i in tree_sizes:
@@ -105,14 +105,14 @@ class CloudParams:
         self.vol             = 'iros_dat'
         self.core_type       = 'f2'
 
-def create_test_params(local_task_fname, task_fname, action_fname):
+def create_test_params(local_task_fname, task_fname, action_fname, no_cmat=False):
     """
     The list of params returned by this is to be mapped to run_example
     """
     taskfile   = h5py.File(local_task_fname, 'r')
     ntasks     = len(taskfile.keys())
     taskfile.close()
-    cmd_params = [(task_fname, i, action_fname, "", False) for i in xrange(ntasks)]
+    cmd_params = [(task_fname, i, action_fname, "", False, no_cmat) for i in xrange(ntasks)]
     return cmd_params
 
 
@@ -151,7 +151,7 @@ def run_tests_on_cloud(cloud_params, do_local=False):
         cp.dump(all_succ, f)
 
 
-def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="eval_set.h5"):
+def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="eval_set.h5", no_cmat=False):
     """
     @ res_dir       : the directory where the results from the test runs will be saved.
                       the saved results will be like: 
@@ -175,7 +175,7 @@ def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], 
 
 
     for i in xrange(len(test_action_fnames)):
-        cmd_params      = create_test_params(local_task_fname, task_fname, test_action_fnames[i])
+        cmd_params      = [create_test_params(local_task_fname, task_fname, test_action_fnames[i])[0]]
         print colorize(" SUBMITTING %d jobs to run on the cloud"%len(cmd_params), "red", True)
         cloud_params    =  CloudParams()
         cloud_params.cmd_params      = cmd_params
@@ -467,10 +467,11 @@ def testing_main():
     
     parser.add_argument("--test_fname", type=str, default="eval_set.h5",
                         help="name of test initial states file.")
+    parser.add_argument("--no_cmat", action='store_true')
     
     args = parser.parse_args()
     print args.tree_sizes
-    test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname)
+    test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname, no_cmat=args.no_cmat)
 
 
 if __name__ == "__main__":

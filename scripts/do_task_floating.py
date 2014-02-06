@@ -565,6 +565,9 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     
     @returns   : the warped trajectory for l/r grippers and the mini-segment information.
     """
+    print "****WARP ROOT*** : ", warp_root
+    print "****NO CMAT*** : ", no_cmat
+
     handles = []
     seg_xyz = seg_info["cloud_xyz"][:]    
     scaled_seg_xyz,  seg_params  = registration.unit_boxify(seg_xyz)
@@ -636,10 +639,6 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
                 print 'traj norm differences:\t', diff
                 Globals.viewer.Idle()
             
-            
-            
-
-        
 
     if plot:
         handles.extend(plotting_openrave.draw_grid(Globals.env, f_warping.transform_points, new_xyz.min(axis=0) - np.r_[0, 0, .1],
