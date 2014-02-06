@@ -105,11 +105,11 @@ class CloudParams:
         self.vol             = 'iros_dat'
         self.core_type       = 'f2'
 
-def create_test_params(task_fname, action_fname):
+def create_test_params(local_task_fname, task_fname, action_fname):
     """
     The list of params returned by this is to be mapped to run_example
     """
-    taskfile   = h5py.File(task_fname, 'r')
+    taskfile   = h5py.File(local_task_fname, 'r')
     ntasks     = len(taskfile.keys())
     taskfile.close()
     cmd_params = [(task_fname, i, action_fname, "", False) for i in xrange(ntasks)]
@@ -151,21 +151,32 @@ def run_tests_on_cloud(cloud_params, do_local=False):
         cp.dump(all_succ, f)
 
 
-def test_bootrun(bootrun_name='boot_1', tree_sizes=[30,60,90,120]):
+def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="eval_set.h5"):
     """
     @ res_dir       : the directory where the results from the test runs will be saved.
                       the saved results will be like: 
                          res_dir/<bootrun_name>_<tree_size>_res.cp
     @ bootrun_name  : the directory holding the actions from the bootstrap runs.
+    @ do_nn         : the action file here is just the nearest neighbor file [use this for baseline]
     @ tree_sizes    : the sizes of bootstrap trees to run tests on.
     """
+    cloud_bootstrapping_dir = "/home/picloud/sandbox/bootstrapping"
     data_dir           = osp.join(os.getenv("BOOTSTRAPPING_DIR"), "data")
-    task_fname         = osp.join(data_dir, "eval_set.h5")
-    test_action_fnames = [osp.join(data_dir, bootrun_name, 'test_bootstrapping_%d.h5'%s) for s in tree_sizes]
-    result_fnames      = [osp.join(data_dir, "test_results", "%s_%d_result.cp"%(bootrun_name, s)) for s in tree_sizes]
+    local_task_fname   = osp.join(data_dir, test_fname)
+    task_fname         = osp.join(cloud_bootstrapping_dir, "data/%s"%test_fname) 
 
-    for i in xrange(len(tree_sizes)):
-        cmd_params      = create_test_params(task_fname, test_action_fnames[i])
+    if not do_nn:
+        result_fnames      = [osp.join(data_dir, "test_results", "%s_%d_result.cp"%(bootrun_name, s)) for s in tree_sizes]
+        test_action_fnames = [osp.join(cloud_bootstrapping_dir, "data", bootrun_name, 'test_bootstrapping_%d.h5'%s) for s in tree_sizes]
+    else:
+        test_basename      = osp.splitext(osp.basename(test_fname))[0]
+        result_fnames      = [osp.join(data_dir, "test_results", "%s_%s_nn_result.cp"%(bootrun_name, test_basename))]
+        test_action_fnames = [osp.join(cloud_bootstrapping_dir, "data", bootrun_name, 'test_bootstrapping_orig.h5')]
+
+
+    for i in xrange(len(test_action_fnames)):
+        cmd_params      = create_test_params(local_task_fname, task_fname, test_action_fnames[i])
+        print colorize(" SUBMITTING %d jobs to run on the cloud"%len(cmd_params), "red", True)
         cloud_params    =  CloudParams()
         cloud_params.cmd_params      = cmd_params
         cloud_params.num_batches     = 1
@@ -175,7 +186,7 @@ def test_bootrun(bootrun_name='boot_1', tree_sizes=[30,60,90,120]):
         cloud_params.env             = 'RSS3'
         cloud_params.vol             = 'iros_dat'
         cloud_params.core_type       = 'f2'
-        
+
         print colorize("running tests for file: %s"%test_action_fnames[i], "magenta", True)
         run_tests_on_cloud(cloud_params, False)
 
@@ -449,8 +460,16 @@ def testing_main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bootstrap_name", type=str,
                         help="name of the bootstrap directory like : boot_1, boot_2, ...")
+    parser.add_argument("--baseline", action='store_true', help='If included, then only the original segments will be chosen [for baseline].')
+    parser.add_argument("--tree_sizes", type=int, nargs="+", default=[30,60,90,120],
+                        help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
+    
+    parser.add_argument("--test_fname", type=str, default="eval_set.h5",
+                        help="name of test initial states file.")
+    
     args = parser.parse_args()
-    test_bootrun(args.bootstrap_name)
+    print args.tree_sizes
+    test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname)
 
 
 if __name__ == "__main__":
