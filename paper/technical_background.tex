@@ -1,4 +1,3 @@
-\subsection{Trajectory Transfer}
 \emph{Trajectory transfer} is an approach to learning from expert demonstrations~\cite{Schulmanetal_ISRR2013}. The trajectory transfer
 algorithm is given a current scene, $s_{test}$, demonstration scene, $s_{demo}$ and a demonstration trajectory,  
 $t_{demo}$, as input. We assume that the scenes are made up of matched points in $\mathbb{R}^3$. The first step is to 
@@ -31,24 +30,5 @@ include demonstrations to recover from common failures. Current approaches use t
 cost (the value of the optimization problem defined in (\ref{eq:tps})). This corresponds to modeling the set of states a demonstration
 can generalize to---that is states for which $L$ is invariant to the TPS warping found by TPS-RPM---as a hyper-sphere 
 in a high-dimensional space where this registration cost is a distance function.
-\subsection{Manifold Learning}
-One way to characterize our approach is that of characterizing, for a particular demonstration,
-the manifold in state space such that the TPS warping of that demonstration will correctly executed 
-the desired task. The field of \emph{manifold learning} concerns itself with a similar problem:
-that of learning a low-dimensional representation of data. This low-dimensional representation 
-is arrived at by assuming that it is drawn from a lower dimensional manifold.
-
-Formally, a $d$-dimensional manifold, $M$, is a set of points such that a local neighborhood 
-around any point can be mapped to $\mathbb{R}^d$ with a homomorphism~\cite{cayton2005algorithms}. Informally, this is usually 
-a set of points in a high dimensional euclidean space that can be paramaterized with $d$ values.
-Manifold learning attempts to learn these manifolds from data.
-
-This has a broad range of applications and approaches. Principal Component Analysis solves
-this problem for the case where the manifold is a linear subspace~\cite{jolliffe2005principal}.
-For manifolds that are not linear, many approaches attempt to find an embedding in low dimensional
-euclidean space that preserves geodesic distances, distance measured along the manifold, between points.
-One approach, Isomap, approximates this geodesic distance by the euclidean distance to the nearest neighbor.
-The underlying assumption here is that locally, the geodesic distance on the manifold is well approximated by the 
-euclidean distance\dhm{cite Isomap paper}.
 
 
