@@ -105,7 +105,7 @@ class CloudParams:
         self.vol             = 'iros_dat'
         self.core_type       = 'f2'
 
-def create_test_params(local_task_fname, task_fname, action_fname, no_cmat=False):
+def create_test_params(local_task_fname, task_fname, action_fname, no_cmat):
     """
     The list of params returned by this is to be mapped to run_example
     """
@@ -151,7 +151,7 @@ def run_tests_on_cloud(cloud_params, do_local=False):
         cp.dump(all_succ, f)
 
 
-def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="eval_set.h5", no_cmat=False):
+def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="final_test_set.h5", no_cmat=False):
     """
     @ res_dir       : the directory where the results from the test runs will be saved.
                       the saved results will be like: 
@@ -175,7 +175,7 @@ def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], 
 
 
     for i in xrange(len(test_action_fnames)):
-        cmd_params      = [create_test_params(local_task_fname, task_fname, test_action_fnames[i])[0]]
+        cmd_params      = create_test_params(local_task_fname, task_fname, test_action_fnames[i], no_cmat)
         print colorize(" SUBMITTING %d jobs to run on the cloud"%len(cmd_params), "red", True)
         cloud_params    =  CloudParams()
         cloud_params.cmd_params      = cmd_params
@@ -457,7 +457,7 @@ def parse_arguments():
 
 def testing_main():
     import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--bootstrap_name", type=str,
                         help="name of the bootstrap directory like : boot_1, boot_2, ...")
@@ -465,17 +465,17 @@ def testing_main():
     parser.add_argument("--tree_sizes", type=int, nargs="+", default=[30,60,90,120],
                         help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
     
-    parser.add_argument("--test_fname", type=str, default="eval_set.h5",
+    parser.add_argument("--test_fname", type=str, default="final_test_set.h5",
                         help="name of test initial states file.")
     parser.add_argument("--no_cmat", action='store_true')
-    
+
     args = parser.parse_args()
     print args.tree_sizes
     test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname, no_cmat=args.no_cmat)
 
 
 if __name__ == "__main__":
-    main()
-    #testing_main()
+    #main()
+    testing_main()
 
 
