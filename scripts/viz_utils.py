@@ -266,7 +266,6 @@ def gen_plot(root):
     stds   = np.std(dmat, axis=1)
     plt.axis((20,130,0,1))
 
-    
     ybest = dmat[:,6]
     baseline = np.array([0.6,0.6,0.6,0.6])
     plt.hold(True)
