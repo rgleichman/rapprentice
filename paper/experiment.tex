@@ -25,11 +25,12 @@ rotation between 0 and $\frac{pi}{4}$ is applied to the perturbed rope. We ran o
 bootstrapping algorithms on initial states from this distribution and tested on a 
 seperate evaluation set.
 
-\subsection{Training and Evaluation}
+\subsubsection{Training and Evaluation}
 In order to explore the improvements from better modelling and compare with improvements
 that come from better transfer of a particular trajectory, we ran two sets of experiments.
 We generated 10 sequences of 170 states drawn IID from our initial state distribution.
 We built a modified trajectory library for both approaches on each of the training sequences.
 Training was accomplished by an initial exploration phase of 50 attempts where only the initial
 demonstrations were used. Then there were 120 knot-tying attempts that chose and transferred
-trajectories using the new techniques.
+trajectories using the new techniques. We evaluted our bootstrapped libraries on an evaluation
+set that consisted of 300 initial states that were held out from training.

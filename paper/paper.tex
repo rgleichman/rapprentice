@@ -15,7 +15,7 @@
 % on the last page of the document
 
 % The following packages can be found on http:\\www.ctan.org
-%\usepackage{graphics} % for pdf, bitmapped graphics files
+\usepackage{graphicx} % for pdf, bitmapped graphics files
 %\usepackage{epsfig} % for postscript graphics files
 %\usepackage{mathptmx} % assumes new font selection scheme installed
 %\usepackage{times} % assumes new font selection scheme installed
@@ -23,6 +23,8 @@
 \usepackage{amssymb}  % assumes amsmath package installed
 \usepackage{color}
 \usepackage[]{algorithm2e}
+\usepackage{caption}
+\usepackage{subcaption}
 
 
 
@@ -31,13 +33,12 @@
 
 
 \title{\LARGE \bf
-Preparation of Papers for IEEE Sponsored Conferences \& Symposia*
+Bootstrapping Trajectory Transfer from Multiple Demonstrations with Applications to Deformable Object Manipulation
 }
 
-
-\author{Ankush Gupta, Dylan Hadfield-Menell, Robbie Gleichman, and Pieter Abbeel% <-this % stops a space
+\author{Ankush Gupta, Dylan Hadfield-Menell, Robbie Gleichman, and Pieter Abbeel$^{1}$% <-this % stops a space
 \thanks{Department of Electrical Engineering and Computer Sciences, University of California at Berkeley, CA, USA.
-  {\tt\small joschu, gupta, sibi,mtaysonfrederick, pabbeel} @berkeley.edu}
+  {\tt\small gupta, dhm, rgleichman, pabbeel} @berkeley.edu}}
 
 \DeclareMathOperator*{\argmin}{arg\,min}
 
@@ -68,9 +69,8 @@ Preparation of Papers for IEEE Sponsored Conferences \& Symposia*
 \section{Bootstrapping New Demonstrations from Experience}
 \input{bootstrapping.tex}
 
-\section{Experimental Setup}
+\section{Experiments and Results}
 \input{experiment.tex}
-\section{Results and Analysis}
 \input{results.tex}
 
 \section{Conclusion and Future Work}
