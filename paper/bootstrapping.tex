@@ -19,26 +19,6 @@ selection method from Schulman et al.~\cite{Schulmanetal_ISRR2013} as approximat
 transfer set for a particular demonstration with a hyper-sphere defined with respect
 to the registration cost.
 
-\begin{algorithm}[H]
- \KwData{Env, O, T}
- \KwResult{S_T}
- \For{t \in T}{
-        S_T[t] = s_t\;
-        }
-        
- \While{not at end of this document}{
-  read current\;
-  \eIf{understand}{
-   go to next section\;
-   current section becomes this one\;
-   }{
-   go back to the beginning of current section\;
-  }
- }
- \caption{Building Transfer Set Models}
- \label{alg:trans-set}
-\end{algorithm}
-
 A first step to improving the selction step is to build a richer
 model of the transfer set associated with a trajectory. Given a set of
 states that a trajectory, $t$,  has been successfully transferred to, $S_T$, we can
@@ -63,21 +43,21 @@ Alg.~\ref{alg:bootstrap} shows a greedy method for building a bootstrapped traje
 library from experience.
 
 \begin{algorithm}[H]
- \KwData{Env, O, T}
- \KwResult{S_T}
- \For{t \in T}{
-        S_T[t] = s_t\;
+ \SetKwInOut{originalDemos}{input}\SetKwInOut{bootstrappedDemos}{output}
+
+ \originalDemos{originalDemos $= \left[(s_{demo1},t_{demo1}), (s_{demo2}, t_{demo2}), \ldots \right]$}
+ \bootstrappedDemos{bootstrappedDemos, the bootstrapped trajectory library}
+ bootstrappedDemos $\leftarrow$ originalDemos\;
+  \For{$i \leftarrow 0$ \KwTo $N$}{
+        $s_{test}$ $\leftarrow$ sample\_from\_test\_distribution()\;
+        $(s_{parent}, t_{parent})$ $\leftarrow \underset{(s,t) \in bootstrappedDemos}{\argmin} registration\_cost(s, s_{test})$\;
+        $t_{warped}$ $\leftarrow$ $apply\_TPS\_RPM\_transform(s_{parent}, s_{test}, t_{parent})$\;
+
+        successful\_trajectory\_execution $\leftarrow$ $executeTrajectory(t_{warped})$\;
+        \If{successful\_trajectory\_execution}{
+          bootstrappedDemos $\leftarrow$ $(s_{parent}, t_{parent})$ $\cup$ bootstrappedDemos \;
         }
-        
- \While{not at end of this document}{
-  read current\;
-  \eIf{understand}{
-   go to next section\;
-   current section becomes this one\;
-   }{
-   go back to the beginning of current section\;
-  }
- }
+    }
  \caption{Bootstrapping a Trajectory Library}
  \label{alg:bootstrap}
 \end{algorithm}
