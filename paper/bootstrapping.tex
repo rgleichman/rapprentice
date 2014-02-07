@@ -19,7 +19,7 @@ selection method from Schulman et al.~\cite{Schulmanetal_ISRR2013} as approximat
 transfer set for a particular demonstration with a hyper-sphere defined with respect
 to the registration cost.
 
-\begin{algorithm}[H]
+\begin{algorithm}
  \KwData{Env, O, T}
  \KwResult{S_T}
  \For{t \in T}{
@@ -62,7 +62,7 @@ library and consider transfering the derived trajectories to new scenes.
 Alg.~\ref{alg:bootstrap} shows a greedy method for building a bootstrapped trajectory
 library from experience.
 
-\begin{algorithm}[H]
+\begin{algorithm}
  \KwData{Env, O, T}
  \KwResult{S_T}
  \For{t \in T}{
