@@ -7,35 +7,47 @@ setting.
 Recent work have gained traction on this problem through the technique of 
 learning from demonstrations~\cite{Schulmanetal_ISRR2013,Schulmanetal_IROS2013}.
 These results are achieved through \emph{trajectory transfer}, where a demonstration
-trajectory is generalized to fit a new scenario. Trajectory transfer finds a non-rigid
+trajectory is generalized to fit to a new scenario. Trajectory transfer finds a non-rigid
 registration between an example scene and the current scene that trades off between
 goodenss-of-fit and the curvature of the registration. 
-This method of transfer is model-free and obviates the need to plan in complicated
-and intractable models of deformable objects. Trajectory transfer has demonstrated 
+This method of transfer is model-free and obviates the need to plan in typically
+intractable models of deformable objects. Trajectory transfer has demonstrated 
 state-of-the-art performance for knot-tying and suturing.
 
-An important aspect of these strategies is the incorporation of multiple demonstrations
-into the process. By increasing the amount of instruction, it becomes possible to do more
+An important aspect of this strategies is incorporation of multiple demonstrations. 
+By increasing the number of demonstrations, it becomes possible to do more
 tasks. Additionally, demonstrations can take the form of steps in a task and can be
-order or recombined to further increase the set of possible successful manipulations.
+ordered and combined to further increase the set of possible successful manipulations.
 
-However, an important problem remains: how should we pick which trajectory to transfer
+However, a key problem remains: how should we pick which trajectory to transfer
 from a library of options given an input scene? Incorrect selection may lead us
 to fail at a task which would otherwise be possible for the correct selection of 
 trajectories. Furthermore, how can we use experience to improve trajectory transfer 
 both at the level of selecting a trajectory to transfer and at the level of transferring
 a single trajectory.
 
-The contributions of this paper are as follows: {\bf(i)} we frame the problem of selecting 
-a trajectory to transfer from a library as one of modelling the \emph{transfer set} for a 
-demonstration: the set of states under which a trajectory transfer method respects 
-condition for successful completion of a manipulation task; {\bf(ii)} 
-we propose a general method for learning these sets from successful traces of 
-execution; {\bf(iii)} we show a method for bootstrapping new demonstrations
-that allows better trajectory transfer and improves the size of the transfer set 
-associated with a demonstration; {\bf(iv)} we demonstrate
-the effectiveness of these improvements in knot-tying task and find improvements  
+In this paper we present a method for improving the performance associated with
+a library of demonstrated trajectories through simulated attempts at trajectory
+transfer and feedback about the success of those transferred trajectory. Our approach
+applies bootstrapping improve on standard trajectory transfer by 
+by treating successful transfers as new demonstrations. This enables us improve
+performance without requiring new human supervision. Treating successful simulations
+as new demonstrations builds up a higher granularity representation of states where
+we expect transfer to succeed and enables better selection of a trajectory to 
+generalize at test time. In addition, the feedback recieved can improve our ability
+to transfer a single trajectory by building an implicit model of non-rigid 
+deformations such that transfer succeeds. We demonstrate the effectiveness 
+of these improvements in knot-tying task and find improvements  
 of up to 25\% over the transfer method described in Schulman et al.~\cite{Schulmanetal_ISRR2013}.
+
+
+\begin{figure}
+  \includegraphics[width=\linewidth]{figs/cov.png}
+  \caption{Example of the steps involved in an overhand knot-tying task in our simulated
+           environment. The strandard demonstrations in our trajectory tie a knot as a 
+           sequence of 3 steps.}
+  \label{fig:knot_steps}
+\end{figure}
 
 
 

@@ -4,83 +4,61 @@ examples of new states that are able to successfully transfer a trajectory to,
 we get a new example of a successful manipulation. We can use these examples
 to transfer trajectories better in new settings.
 
-\subsection{Modelling Transfer Sets}
 Formally, we assume access to an environment and a reward signal. In our work, this
 environment is a simulated although in the approach can apply to real settings. 
 Our reward signal is a 1-0 response which tells us if a manipulation succeeds. For 
 tasks involving several steps, we associate success with a manipulation if a success
 signal is received before a fixed time horizon is reached.
 
-To ease discussion, we introduce the concept of a \emph{transfer set}. Given a method for
+To ease discussion, we will use the concept of a \emph{transfer set}. Given a method for
 transfering a demonstration trajectory to a new state, the associated transfer set is
-the set of states such that the transferred trajectory will successfully execute the
-demonstrated manipulation. With this terminology, we can consider the nearest-neighbor
-selection method from Schulman et al.~\cite{Schulmanetal_ISRR2013} as approximating the
-transfer set for a particular demonstration with a hyper-sphere defined with respect
-to the registration cost.
+the set of states such that the transferred trajectory will successfully execute a
+demonstrated manipulation. The assumption behind the nearest-neighbor selection
+method from Schulman et al.~\cite{Schulmanetal_ISRR2013} can be stated that states
+which have a low registration cost to the demonstration scene are likely to be in the
+transfer set for that demonstration. This assumes that the state space is locally
+smooth with respect to registration cost. In practice, this assumption has been
+born out in the success of this approach
 
-\begin{algorithm}[H]
- \KwData{Env, O, T}
- \KwResult{S_T}
- \For{t \in T}{
-        S_T[t] = s_t\;
-        }
-        
- \While{not at end of this document}{
-  read current\;
-  \eIf{understand}{
-   go to next section\;
-   current section becomes this one\;
-   }{
-   go back to the beginning of current section\;
-  }
- }
- \caption{Building Transfer Set Models}
- \label{alg:trans-set}
-\end{algorithm}
-
-A first step to improving the selction step is to build a richer
-model of the transfer set associated with a trajectory. Given a set of
-states that a trajectory, $t$,  has been successfully transferred to, $S_T$, we can
-model a transfer set with a collection of hyper-spheres around those states.
-Then, when it comes time to select a trajectory to generalize, we pick according to
-the following rule:
+By attempting to transfer trajectories in simulation, we can get additional feedback
+and examples of states that are in the transfer set for our demonstrations.
+Continuing with this line of reasoning, a natural next step is to hope that that
+states that are close (with respect to registration cost) to states in the transfer
+set are likely to be that transfer set. This suggest a simple way to improve performance
+through experimentation: given a set of
+states that a trajectory, $t$,  has been successfully transferred to, $S_T$,
+we select a trajectory to transfer according to the following rule:
 \begin{equation}
 \underset{t}{\argmin} \ \ \underset{s\in S_t}{\min} \ \ {\text registration\_cost}(s).
 \end{equation}
-Alg.~\ref{alg:trans-set} illustrates a greedy algorithm for building up the sets $S_t$ given
-access to a simulation environment and a reward signal. 
 
-\subsection{Bootstrapping New Examples}
-Building a better model of the transfer set for a trajectory provides a way
-to better select trajectories. However, it discards a reasonable amount of
-data. During execution, have access to the transferred trajectories in addition
-to the states they were transferred to. In some sense, these are new examples of 
-successful manipulations in their own right. Instead of simply storing
+We can take this idea a step further. When we succeed in completing a task in a new
+scenario, we get a new set of states a trajectories that perform our desired manipulation.
+These are new examples of successful manipulations in their own right. Instead of simply storing
 the states we successfully transfer to, we can add those examples to our trajectory 
 library and consider transfering the derived trajectories to new scenes. 
 Alg.~\ref{alg:bootstrap} shows a greedy method for building a bootstrapped trajectory
 library from experience.
 
-\begin{algorithm}[H]
- \KwData{Env, O, T}
- \KwResult{S_T}
- \For{t \in T}{
-        S_T[t] = s_t\;
-        }
+%% \begin{algorithm}[H]
+%%  \KwData{Env, O, T}
+%%  \KwResult{S_T}
+%%  \For{t \in T}{
+%%         S_T[t] = s_t\;
+%%         }
         
- \While{not at end of this document}{
-  read current\;
-  \eIf{understand}{
-   go to next section\;
-   current section becomes this one\;
-   }{
-   go back to the beginning of current section\;
-  }
- }
- \caption{Bootstrapping a Trajectory Library}
- \label{alg:bootstrap}
-\end{algorithm}
+%%  \While{not at end of this document}{
+%%   read current\;
+%%   \eIf{understand}{
+%%    go to next section\;
+%%    current section becomes this one\;
+%%    }{
+%%    go back to the beginning of current section\;
+%%   }
+%%  }
+%%  \caption{Bootstrapping a Trajectory Library}
+%%  \label{alg:bootstrap}
+%% \end{algorithm}
 
 One possible objection to this method is as follows: given that these derived examples
 simply deformations of an original, why would we expect this to be better than simply
