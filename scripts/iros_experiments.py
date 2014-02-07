@@ -138,6 +138,7 @@ def run_tests_on_cloud(cloud_params, do_local=False):
         try:
             if not do_local:
                 jids = cloud.map(run_example, cmds, _vol=cloud_params.vol, _env=cloud_params.env, _type=cloud_params.core_type)
+                print colorize("\t submitted %d jobs"%len(jids), "yellow", False)
                 succ = cloud.result(jids)
                 print colorize("\t got results for batch %d/%d "%(i, len(batch_edges)), "green", True)
             else:

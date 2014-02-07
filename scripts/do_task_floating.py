@@ -76,9 +76,9 @@ class TaskParameters:
     def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5,
                  no_cmat=False):
         self.action_file = action_file
-        self.cloud_xyz = cloud_xyz
-        self.animate = animate
-        self.warp_root = warp_root
+        self.cloud_xyz   = cloud_xyz
+        self.animate     = animate
+        self.warp_root   = warp_root
         self.max_steps_before_failure = max_steps_before_failure
         self.no_cmat=no_cmat
 
@@ -540,7 +540,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
     table_height = new_xyz[:, 2].mean() - 0.17
-    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[1, 1, .01])
+    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[5, 5, .01])
     Globals.env.LoadData(table_xml)
     
     Globals.sim = ropesim_floating.FloatingGripperSimulation(Globals.env)
@@ -682,7 +682,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
 
     new_xyz = Globals.sim.observe_cloud(upsample=110)
 
-    segment = choose_segment(demofile, new_xyz, 7)
+    segment = choose_segment(demofile, new_xyz, -1)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)

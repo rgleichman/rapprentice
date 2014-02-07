@@ -125,14 +125,14 @@ def draw_grid(f, mins, maxes, xres = .1, yres = .1, zres = -1):
 
     for i,line in enumerate(lines):
         if i==2 or i==4:
-            plt.plot(line[:,0], line[:,1], '0.0', lw=2.5)
+            plt.plot(line[:,0], line[:,1], '0.1', lw=2.5)
         else:
-            plt.plot(line[:,0], line[:,1], '0.4')
+            plt.plot(line[:,0], line[:,1], '0.7')
             
 
 def plot_correspondences(xyz, corr_xyz):
     for i in xrange(len(xyz)):
-        plt.plot([xyz[i,0], corr_xyz[i,0]], [xyz[i,1], corr_xyz[i,1]], '0.75')
+        plt.plot([xyz[i,0]+0.05, corr_xyz[i,0]], [xyz[i,1]-0.05, corr_xyz[i,1]], '0.5')
 
 
 class chain_fs:
@@ -166,8 +166,16 @@ def get_f_path_bootstrap(h5py_fname, path):
         fboot =  registration.unscale_tps(fboot, root_params, targ_params)
     return fboot, None    
 
-
-
+def plot_warp(src, targ, warp, f):
+    plt.axis('off')
+    plt.hold(True)
+    plt.axis((0.2,1.1,-0.4,0.1))
+    draw_grid(f.transform_points, np.min(src, axis=0), np.max(src, axis=0))
+    plot_correspondences(src[:,:], warp[:,:])
+    plt.scatter(src[:,0]+0.05, src[:,1]-0.05, c='g', lw=0, marker='d')
+    plt.scatter(targ[:,0], targ[:,1], c='b', lw=0)
+    plt.scatter(warp[:,0], warp[:,1], c='r', lw=0, marker='s')
+    
 def plot_chained_f(path, h5py_fname):
     h5py_file = h5py.File(h5py_fname)
     init_xyz  = h5py_file[path[0]]['cloud_xyz'][()]
@@ -175,27 +183,21 @@ def plot_chained_f(path, h5py_fname):
     penul_xyz = h5py_file[path[-2]]['cloud_xyz'][()]
     h5py_file.close()
 
-    plt.subplot(1,4,1)
+    #plt.subplot(2,2,2)
+    plt.clf()
     fdirect          = get_fwarp(init_xyz, final_xyz)[0]
     direct_warp_xyz  = fdirect.transform_points(init_xyz)
-    plt.hold(True)
-    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
-    plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
-    plt.scatter(direct_warp_xyz[:,0], direct_warp_xyz[:,1], c='g', lw=0)
-    draw_grid(fdirect.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
-    plot_correspondences(init_xyz, direct_warp_xyz)
-    #plt.show(block=False)
-    
-    plt.subplot(1,4,2)
+    plot_warp(init_xyz, final_xyz, direct_warp_xyz, fdirect)
+    plt.savefig('2.pdf')
+
+    #plt.subplot(2,2,4)
+    plt.clf()
     fs, corrs = get_f_path(h5py_fname, path)
     fchain          = chain_fs(fs)
     chain_warp_xyz  = fchain.transform_points(init_xyz)
-    plt.hold(True)
-    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
-    plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
-    plt.scatter(chain_warp_xyz[:,0], chain_warp_xyz[:,1], c='g', lw=0)
-    draw_grid(fchain.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
-    plot_correspondences(init_xyz, chain_warp_xyz)
+    plot_warp(init_xyz, final_xyz, chain_warp_xyz, fchain)
+    plt.savefig('4.pdf')
+
     
 
     """
@@ -227,21 +229,22 @@ def plot_chained_f(path, h5py_fname):
     plot_correspondences(init_xyz, boot_warp_xyz)
     """
     
- 
-    plt.subplot(1,4,3)    
+
+    #plt.subplot(2,2,3)
+    plt.clf()    
     fboot = get_f_path_bootstrap(h5py_fname, path)[0]
     boot_warp_xyz  = fboot.transform_points(init_xyz)
-    plt.hold(True)
-    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
-    plt.scatter(final_xyz[:,0], final_xyz[:,1], c='b', lw=0)
-    plt.scatter(boot_warp_xyz[:,0], boot_warp_xyz[:,1], c='g', lw=0)
-    draw_grid(fboot.transform_points, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
-    plot_correspondences(init_xyz, boot_warp_xyz)
+    plot_warp(init_xyz, final_xyz, boot_warp_xyz, fboot)
+    plt.savefig('3.pdf')
     
-    plt.subplot(1,4,4)
+    #plt.subplot(2,2,1)
+    plt.clf()
+    plt.axis('off')
     plt.hold(True)
     plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
     draw_grid(lambda x: x, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
+    plt.savefig('1.pdf')
+    
     plt.show()
     
     
