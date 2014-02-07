@@ -20,6 +20,7 @@ transfer set for that demonstration. This assumes that the state space is locall
 smooth with respect to registration cost. In practice, this assumption has been
 born out in the success of this approach
 
+
 By attempting to transfer trajectories in simulation, we can get additional feedback
 and examples of states that are in the transfer set for our demonstrations.
 Continuing with this line of reasoning, a natural next step is to hope that that
@@ -37,28 +38,8 @@ scenario, we get a new set of states a trajectories that perform our desired man
 These are new examples of successful manipulations in their own right. Instead of simply storing
 the states we successfully transfer to, we can add those examples to our trajectory 
 library and consider transfering the derived trajectories to new scenes. 
-Alg.~\ref{alg:bootstrap} shows a greedy method for building a bootstrapped trajectory
-library from experience.
 
-%% \begin{algorithm}[H]
-%%  \KwData{Env, O, T}
-%%  \KwResult{S_T}
-%%  \For{t \in T}{
-%%         S_T[t] = s_t\;
-%%         }
         
-%%  \While{not at end of this document}{
-%%   read current\;
-%%   \eIf{understand}{
-%%    go to next section\;
-%%    current section becomes this one\;
-%%    }{
-%%    go back to the beginning of current section\;
-%%   }
-%%  }
-%%  \caption{Bootstrapping a Trajectory Library}
-%%  \label{alg:bootstrap}
-%% \end{algorithm}
 
 One possible objection to this method is as follows: given that these derived examples
 simply deformations of an original, why would we expect this to be better than simply
