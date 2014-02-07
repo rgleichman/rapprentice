@@ -240,7 +240,8 @@ def plot_chained_f(path, h5py_fname):
     plt.clf()
     plt.axis('off')
     plt.hold(True)
-    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='r', lw=0)
+    plt.scatter(init_xyz[:,0], init_xyz[:,1], c='g', lw=0, marker='d')
+    
     draw_grid(lambda x: x, np.min(init_xyz, axis=0), np.max(init_xyz, axis=0))
     plt.savefig('1.pdf')
     
@@ -266,7 +267,6 @@ def gen_plot(root):
     stds   = np.std(dmat, axis=1)
     plt.axis((20,130,0,1))
 
-    
     ybest = dmat[:,6]
     baseline = np.array([0.6,0.6,0.6,0.6])
     plt.hold(True)
@@ -298,5 +298,5 @@ def main():
     
 
 if __name__=='__main__':
-    gen_plot(False)
-    #main()
+    #gen_plot(False)
+    main()

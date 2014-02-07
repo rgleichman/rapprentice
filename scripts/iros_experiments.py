@@ -476,7 +476,7 @@ def testing_main():
 
 
 if __name__ == "__main__":
-    #main()
-    testing_main()
+    main()
+    #testing_main()
 
 

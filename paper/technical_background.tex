@@ -2,7 +2,7 @@
 algorithm is given a current scene, $s_{test}$, demonstration scene, $s_{demo}$ and a demonstration trajectory,  
 $t_{demo}$, as input. We assume that the scenes are made up of matched points in $\mathbb{R}^3$. The first step is to 
 find a function, $f^*:\mathbb{R}^3 \rightarrow \mathbb{R}^3$, as the solution to the following optimization problem:
-\begin{equation}\min_f \sum_i ||s_{test}^{(i)} - s_{demo}^{(i)}||^2 + C\int dx ||D^2(f)||^2_{Frob}.\label{eq:tps}\end{equation}
+\begin{equation}\min_f \sum_i ||s_{test}^{(i)} - f(s_{demo}^{(i)})||^2 + C\int dx ||D^2(f)||^2_{Frob}.\label{eq:tps}\end{equation}
 The minimizing $f$ will be a Thin Plate Spline, and can be expressed as a linear combination of basis
 functions about the correspondence points~\cite{Wahba_TPS1990}. $C$ is a hyper-parameter that trades off
 between goodness of fit and the curvature of the function. The solution to this optimization can be computed

@@ -540,7 +540,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
     Globals.env = openravepy.Environment()  # @UndefinedVariable
     
     table_height = new_xyz[:, 2].mean() - 0.17
-    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[5, 5, .01])
+    table_xml    = make_table_xml(translation=[1, 0, table_height], extents=[1, 0.6, .01])
     Globals.env.LoadData(table_xml)
     
     Globals.sim = ropesim_floating.FloatingGripperSimulation(Globals.env)
@@ -682,7 +682,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
 
     new_xyz = Globals.sim.observe_cloud(upsample=110)
 
-    segment = choose_segment(demofile, new_xyz, -1)
+    segment = choose_segment(demofile, new_xyz, 7)
     if segment is None:
         print "Got no segment while choosing a segment for warping."
         sys.exit(-1)
