@@ -1,1 +1,22 @@
-The section describes the experiments we did and the results we got.
+\begin{table}
+  \centering
+  \begin{tabular}{lc}
+    \toprule
+      Policy & Test Accuracy\\
+    \midrule
+      Nearest neighbor \cite{Schulmanetal_ISRR2013} & 68.8\% \\
+    \midrule
+      Greedy & 85.6\% \\
+      Lookahead (depth 1, width 10) & 93.6\% \\g
+      Lookahead (depth 2, width 5) & 95.2\% \\
+    \bottomrule
+  \end{tabular}
+  \caption{Success rate of tying a knot using the expert-labeled examples. The neareast-neighbor method selects
+           the demonstration that minimizes a bi-directional registration cost associated with the trajectory transfer.
+           Other policies maximize the approximate Q-function we learn through \mmql{}. Greedy maximizes this value in the current
+           state. The lookahead policies act to maximize a back up value computed by beam search with the specified parameters. The greedy
+           succeeds in an additional 17\% of examples when compared with the baseline. Lookahead policies achieve very high performance rates
+           and approach the best possible with our demonstration library.}
+  \label{table:performance}
+\end{table}
+

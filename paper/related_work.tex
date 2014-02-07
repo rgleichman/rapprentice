@@ -51,14 +51,5 @@ and uses simpler low level controllers.
 Calinon et al. learn a mixture of Gaussians to represent the joint trajectory of the robot and environment
 state across multiple demonstrations, and infer the trajectory for a new
 environment state by conditioning on that state~\cite{Calinon_SMC2007, Calinon_HUM2009}. Their approach
-assumes access to a feature representation of the environment, so it cannot be applied to tasks in
+assumes access to a feature representation of the environment, so it cannot directly be applied to tasks in
 environments without fixed feature representations --- such as our application of knot tying.
-
-Dvijotham et al.~\cite{Dvijotham_ICML2010} directly
-learn a value function or Q-function for a MDP, given sample transitions
-from an optimal control policy. They learn the expert's 
-reward function and are limited to models with tractable discrete representations 
-or linear dynamics models.
-In contrast, our approach fixes a cost function 
-and use learning to account for the prohibitive size and
-complex dynamics.

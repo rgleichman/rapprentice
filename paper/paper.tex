@@ -22,6 +22,7 @@
 \usepackage{amsmath} % assumes amsmath package installed
 \usepackage{amssymb}  % assumes amsmath package installed
 \usepackage{color}
+\usepackage[]{algorithm2e}
 
 
 
@@ -44,10 +45,11 @@ Preparation of Papers for IEEE Sponsored Conferences \& Symposia*
         {\tt\small b.d.researcher@ieee.org}}%
 }
 
+\DeclareMathOperator*{\argmin}{arg\,min}
 
 \begin{document}
 
-
+\RestyleAlgo{boxruled}
 
 \maketitle
 \thispagestyle{empty}
@@ -69,12 +71,12 @@ Preparation of Papers for IEEE Sponsored Conferences \& Symposia*
 \section{Trajectory Transfer with Thin Plate Splines}
 \input{technical_background.tex}
 
-\section{Approach}
+\section{Bootstrapping New Demonstrations from Experience}
 \input{bootstrapping.tex}
 
 \section{Experimental Setup}
 \input{experiment.tex}
-\section{Results}
+\section{Results and Analysis}
 \input{results.tex}
 
 \section{Conclusion and Future Work}
