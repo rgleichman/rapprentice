@@ -1,17 +1,28 @@
 A large challenge in applying standard manipulation and planning techniques to
-deformable object manipulation is that of tractable modelling. Deformable object 
+deformable object manipulation is that of tractable modeling. Deformable object 
 are often characterized by high-dimensional, continuous state-action spaces. Model-based 
 planning has yet to scale up to the task of efficient planning in this
 setting.
+
+\begin{figure}[t]
+  \includegraphics[width=\linewidth]{figs/teaser.png}
+  \caption{Diagram of the bootstrapping approach we employ. Our system uses simulation
+           of perturbed states from our demonstration set to augment a library of expert
+           demonstrations. We find that this approach can leverage synthetic data to improve
+           on the applicable of expert demonstrations by better modelling of states that
+           trajectories can transfer to and allowing our approach to penalize less for
+           transformations where transfer succeeds.}
+  \label{fig:bootstrap}
+\end{figure}
 
 Recent work have gained traction on this problem through the technique of 
 learning from demonstrations~\cite{Schulmanetal_ISRR2013,Schulmanetal_IROS2013}.
 These results are achieved through \emph{trajectory transfer}, where a demonstration
 trajectory is generalized to fit to a new scenario. Trajectory transfer finds a non-rigid
 registration between an example scene and the current scene that trades off between
-goodenss-of-fit and the curvature of the registration. 
-This method of transfer is model-free and obviates the need to plan in typically
-intractable models of deformable objects. Trajectory transfer has demonstrated 
+goodness-of-fit and the curvature of the registration. 
+This method of transfer is model-free and obviates the need to plan in complicated
+and intractable models of deformable objects. Trajectory transfer has demonstrated 
 state-of-the-art performance for knot-tying and suturing.
 
 An important aspect of this strategies is incorporation of multiple demonstrations. 
@@ -40,16 +51,7 @@ deformations such that transfer succeeds. We demonstrate the effectiveness
 of these improvements in knot-tying task and find improvements  
 of up to 25\% over the transfer method described in Schulman et al.~\cite{Schulmanetal_ISRR2013}.
 
-\begin{figure}
-  \includegraphics[width=\linewidth]{figs/teaser.png}
-  \caption{Diagram of the bootstrapping approach we employ. Our system uses simulation
-           of perturbed states from our demonstration set to augment a library of expert
-           demonstrations. We find that this approach can leverage synthetic data to improve
-           on the applicable of expert demonstrations by better modelling of states that
-           trajectories can transfer to and allowing our approach to penalize less for
-           transformations where transfer succeeds.}
-  \label{fig:knot_steps}
-\end{figure}
+
 
 
 

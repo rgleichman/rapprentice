@@ -8,7 +8,7 @@ functions about the correspondence points~\cite{Wahba_TPS1990}. $C$ is a hyper-p
 between goodness of fit and the curvature of the function. The solution to this optimization can be computed
 as the solution to a linear system of equations.
 
-Given a warping, $f^*$, between the demo and test scenes, we take each pose from the demo trajectory and pase it through
+Given a warping, $f^*$, between the demo and test scenes, we take each pose from the demo trajectory and pass it through
 $f^*$. Poses are transferred by mapping coordinate frames through the jacobian of $f^*$. The trajectory that results from this
 is used to guide a motion planner that finds a similar feasible trajectory. This trajectory is executed in the test scene.
 In the case where correspondences are not known initially, one can use TPS-RPM, an approach that jointly finds

@@ -20,5 +20,5 @@ def animate_floating_traj(lhmats, rhmats, sim, pause=True, step_viewer=True, cal
         if callback is not None: callback(i)
         sim.grippers['r'].set_toolframe_transform(rhmats[i])
         sim.grippers['l'].set_toolframe_transform(lhmats[i])
-        if True: viewer.Idle()
+        if pause: viewer.Idle()
         elif step_viewer and not i%20: viewer.Step()

@@ -70,7 +70,7 @@ we are also finding correspondences between points in the different scenes. Find
 correspondences is a difficult and well-studied problem in computer vision and the best
 approaches are subject to local optima. The TPS-RPM algorithm is no exception. 
 
-We could appeal to local features to improve this difficulty, but finding feaure descriptors 
+We could appeal to local features to improve this difficulty, but finding feature descriptors 
 that capture important aspects of general manipulation problems is a difficult task. The
 states we add to our trajectory library are examples of states and correspondences that 
 successfully transferred a demonstration trajectory. By transferring directly from those
@@ -88,13 +88,13 @@ Instead of using a thin plate spline, we are using a form of iterated thin plate
 
 The intuition behind this is that a thin plate spline represents an encoding of a preference
 for non-rigid functions to transfer a state. For a general approach, this is a good
-prefernce to have. However, for a particular manipulation task, not all deformations
+preference to have. However, for a particular manipulation task, not all deformations
 will have the same effect on transfer success. 
 
 As an example, consider a robot transferring
-trajectories for openning a drawer. In transferring the first portion of a demonstration,
-almost any deformation is ok: all that needs to happen is that the robot grabs the drawer handle.
-However, for the second part---actually openning the drawer---almost any non-rigid deformation
+trajectories for opening a drawer. In transferring the first portion of a demonstration,
+almost any deformation is OK: all that needs to happen is that the robot grabs the drawer handle.
+However, for the second part---actually opening the drawer---almost any non-rigid deformation
 will result in a failed transfer.
 
 In fitting a thin plate spline to derived trajectories, we gain the ability 
@@ -103,7 +103,7 @@ The non-rigid deformations that resulted in successful transfers are no longer
 penalized in fitting the thin plate spline. For our drawer example, after enough
 examples of successful transfers this technique would effectively learn to allow
 certain types of deformations (e.g. those that allow us to grab the drawer) but still
-maintain the ability to penalize for others (e.g. defomations that don't allow the robot to
+maintain the ability to penalize for others (e.g. deformations that don't allow the robot to
 open the drawer).
 
 
