@@ -73,7 +73,7 @@ class RopeState:
         self.perturb_num_points = perturb_num_points
 
 class TaskParameters:
-    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5,
+    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=True, max_steps_before_failure=5,
                  no_cmat=False):
         self.action_file = action_file
         self.cloud_xyz   = cloud_xyz
@@ -557,7 +557,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
 
 compare_bootstrap_correspondences = False# set to true and call with warp_root=False to compare warping derived trajectories to warping initial with bootstrapped correspondences
 
-def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=False, plot=False, no_cmat=False):
+def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False, no_cmat=False):
     """
     @seg_info  : segment information from the h5 file for the segment with least tps fit cost.
     @new_xyz   : point cloud of the rope in the test situation.

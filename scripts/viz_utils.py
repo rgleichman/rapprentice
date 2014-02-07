@@ -198,7 +198,6 @@ def plot_chained_f(path, h5py_fname):
     plot_warp(init_xyz, final_xyz, chain_warp_xyz, fchain)
     plt.savefig('4.pdf')
 
-    
 
     """
     plt.subplot(1,3,3)    
@@ -247,10 +246,41 @@ def plot_chained_f(path, h5py_fname):
     
     plt.show()
     
+
+no_root_res = {30 : np.array([0.63,0.72,0.77,0.62,0.696,0.6,0.753,0.75,0.703,0.689]),
+               60 : np.array([0.64,0.74,0.74,0.63,0.75,0.636,0.77,0.76,0.753,0.683]),
+               90 : np.array([0.67,0.753,0.786,0.67,0.796,0.686,0.803,0.706,0.75,0.72]),
+               120: np.array([0.68,0.74,0.783,0.683,0.77,0.68,0.843,0.74,0.756,0.686])}
+
+root_res = {30 : np.array([]),
+            60 : np.array([]),
+            90 : np.array([]),
+            120: np.array([])}
+
+def gen_plot(root):
+    dat    = no_root_res if not root else root_res
+    ndemos = np.array(np.sort(dat.keys()))
+    dmat   = np.array([dat[k] for k in np.sort(dat.keys())])
+
+    savg   = np.mean(dmat, axis=1)
+    stds   = np.std(dmat, axis=1)
+    plt.axis((20,130,0,1))
+
+    
+    ybest = dmat[:,6]
+    baseline = np.array([0.6,0.6,0.6,0.6])
+    plt.hold(True)
+    _, caps,dd = plt.errorbar(ndemos, savg, yerr=stds, ecolor='red', lw=2, fmt=':b', label="average")
+    plt.plot(ndemos, ybest, '--b', lw=2, label="best")
+    plt.plot(ndemos, baseline, '-b', lw=2, label="baseline")
+    plt.xlabel('number of exploration runs')
+    plt.ylabel('success rate')
+    plt.legend()
+    plt.plot()
     
     
-    
-    
+    plt.show()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -267,6 +297,6 @@ def main():
     
     
 
-
 if __name__=='__main__':
-    main()
+    gen_plot(False)
+    #main()
