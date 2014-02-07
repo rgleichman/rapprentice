@@ -40,14 +40,17 @@ deformations such that transfer succeeds. We demonstrate the effectiveness
 of these improvements in knot-tying task and find improvements  
 of up to 25\% over the transfer method described in Schulman et al.~\cite{Schulmanetal_ISRR2013}.
 
-
 \begin{figure}
-  \includegraphics[width=\linewidth]{figs/cov.png}
-  \caption{Example of the steps involved in an overhand knot-tying task in our simulated
-           environment. The strandard demonstrations in our trajectory tie a knot as a 
-           sequence of 3 steps.}
+  \includegraphics[width=\linewidth]{figs/teaser.png}
+  \caption{Diagram of the bootstrapping approach we employ. Our system uses simulation
+           of perturbed states from our demonstration set to augment a library of expert
+           demonstrations. We find that this approach can leverage synthetic data to improve
+           on the applicable of expert demonstrations by better modelling of states that
+           trajectories can transfer to and allowing our approach to penalize less for
+           transformations where transfer succeeds.}
   \label{fig:knot_steps}
 \end{figure}
+
 
 
 

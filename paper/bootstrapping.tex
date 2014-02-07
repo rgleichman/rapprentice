@@ -37,9 +37,28 @@ We can take this idea a step further. When we succeed in completing a task in a 
 scenario, we get a new set of states a trajectories that perform our desired manipulation.
 These are new examples of successful manipulations in their own right. Instead of simply storing
 the states we successfully transfer to, we can add those examples to our trajectory 
-library and consider transfering the derived trajectories to new scenes. 
+library and consider transfering the derived trajectories to new scenes. Alg.~\ref{alg:bootstrap} shows an exploration strategy to apply bootstrapping to a trajectory library. The process
+repeatedly selects the nearest-neighbor with respect to registration cost, and adds it 
+to the trajectory library if successful.
 
-        
+\begin{algorithm}
+ \SetKwInOut{trajLib}{input}\SetKwInOut{bootstrapLib}{output}
+
+ \trajLib{trajLib $= \left[(s_{1},t_{1}), (s_{2}, t_{2}), \ldots \right]$}
+ \bootstrapLib{bootstrapLib, bootstrapped trajectory library}
+ bootstrapLib $\leftarrow$ trajLib\;
+  \For{$i \leftarrow 0$ \KwTo $N$}{
+        $s_{test}$ $\leftarrow$ sampleNewInitialState()\;
+        $(s_{p}, t_{p})$ $\leftarrow \underset{(s,t)}{\argmin} \ registration\_cost(s, s_{test})$\;
+        $t_{warped}$ $\leftarrow$ $fit\_TPS(s_{p}, s_{test}, t_{parent})$\;
+
+        \If{successful\_trajectory\_execution}{
+          bootstrapLib $\leftarrow$ $(s_{p}, t_{warped})$ $\cup$ bootstrapLib \;
+        }
+    }
+ \caption{Bootstrapping a Trajectory Library}
+ \label{alg:bootstrap}
+\end{algorithm}
 
 One possible objection to this method is as follows: given that these derived examples
 simply deformations of an original, why would we expect this to be better than simply
