@@ -468,7 +468,7 @@ def do_single_task(task_params):
         print "i =", i
         if max_steps_before_failure != -1 and i >= max_steps_before_failure:
             break
-        loop_result = loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=i, no_cmat=no_cmat)
+        loop_result = loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=i)
         if loop_result is not None:
             knot_result = loop_result['found_knot']
             loop_results.append(loop_result)
@@ -557,7 +557,7 @@ def setup_and_return_action_file(action_file, new_xyz, animate):
 
 compare_bootstrap_correspondences = False# set to true and call with warp_root=False to compare warping derived trajectories to warping initial with bootstrapped correspondences
 
-def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=False, no_cmat=False):
+def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=False, plot=False, no_cmat=False):
     """
     @seg_info  : segment information from the h5 file for the segment with least tps fit cost.
     @new_xyz   : point cloud of the rope in the test situation.
@@ -659,7 +659,7 @@ def get_warped_trajectory(seg_info, new_xyz, demofile, warp_root=True, plot=Fals
     return (cmat, warped_ee_traj, miniseg_starts, miniseg_ends, {'r':rgrip_joints, 'l':lgrip_joints})
 
 
-def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None, no_cmat=False):
+def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=None):
     """
     Do the body of the main task execution loop (ie. do a segment).
     Arguments:
@@ -692,7 +692,7 @@ def loop_body(task_params, demofile, choose_segment, knot, animate, curr_step=No
     cmat, warped_ee_traj, miniseg_starts, miniseg_ends, joint_traj = get_warped_trajectory(seg_info, new_xyz, demofile, 
                                                                                            warp_root=task_params.warp_root,
                                                                                            plot=task_params.animate,
-                                                                                           no_cmat=no_cmat)
+                                                                                           no_cmat=task_params.no_cmat)
     success = True
     redprint("executing segment trajectory...")
 
