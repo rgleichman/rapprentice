@@ -60,6 +60,7 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     print 'success rate', sum(results)/float(len(results))
     return sum(results)/float(len(results))
 
+#TODO do a map of this for not in the cloud
 def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no_cmat, warp_root)):
     """
     runs a knot-tie attempt for task_id (taken from taskfile
@@ -92,6 +93,21 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no
         finally:
             bootf.close()
     return task_results['success']
+
+def run_tests_locally(task_fname, action_fname, no_cmat, warp_root):
+    taskfile = h5py.File(task_fname, 'r')
+    num_tests = len(taskfile)
+    results = []
+    for i in range(len(taskfile)):
+        print "Running test with task_fname = ", task_fname
+        print "Action_fname = ", action_fname
+        print "Task ", i
+        result = run_example((task_fname, i, action_fname, '', False, no_cmat, warp_root))
+        print "Result = ", result
+        results.append(result)
+    print 'success rate', sum(results)/float(len(results))
+    return sum(results)/float(len(results))
+
 
 
 class CloudParams:
@@ -402,7 +418,6 @@ def run_example_test():
 def main():
     args = parse_arguments()
     boot_dir = args.bootstrapping_directory
-    #TODO  Should the boot_fname be different?
     boot_fname_leaf = 'boot.h5'
     if args.tree_sizes:
         boot_fname_leaf = 'boot_{}.h5'.format(max(args.tree_sizes))
@@ -455,10 +470,11 @@ def parse_arguments():
     parser.add_argument("--tree_sizes", type=int, nargs="+", default=None,
                         help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
     parser.add_argument("--no_cmat", action='store_true', help="If included, then the cmat will not be used when warping to the root.")
-    parser.add_argument("--warp_root", action='store_true', help ="If included, then segments will per warped from with the root of the closest segemnt tree.")
+    parser.add_argument("--warp_root", action='store_true', help ="If included, then segments will per warped from the root of the closest segemnt tree.")
     args = parser.parse_args()
     print "args =", args
     return args
+
 
 def testing_main():
     import argparse
@@ -479,8 +495,28 @@ def testing_main():
     test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname, no_cmat=args.no_cmat)
 
 
-if __name__ == "__main__":
-    main()
-    #testing_main()
+def local_testing_main():
+    import argparse
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task_file", type=str,
+                        help="name of the task file")
+    parser.add_argument("actions_file", type=str,
+                        help="The file that contains the actions that will be chosen from (possibly created by bootstrapping.")
+    parser.add_argument("result_file", type=str,
+                        help="The file that contains the result (success rate).")
+    parser.add_argument("--no_cmat", action='store_true', help="If included, then the cmat will not be used when warping to the root.")
+    parser.add_argument("--warp_root", action='store_true', help ="If included, then segments will per warped from the root of the closest segemnt tree.")
+    args = parser.parse_args()
+    success_rate = run_tests_locally(args.task_file, args.actions_file, args.no_cmat, args.warp_root)
+    import cPickle as cp
+    res_fname = args.result_file
+    with open(res_fname, 'w') as f:
+        cp.dump({'success_rate':success_rate, 'args':args}, f)
+    return success_rate
+
+if __name__ == "__main__":
+    #main()
+    #testing_main()
+    local_testing_main()
 
