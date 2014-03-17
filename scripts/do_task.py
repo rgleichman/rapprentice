@@ -166,12 +166,12 @@ def sample_rope_state(demofile, perturb_points=5, min_rad=0, max_rad=.15):
     rope_nodes = rope_initialization.find_path_through_point_cloud( new_xyz,
                                                                     perturb_peak_dist=perturb_radius,
                                                                     num_perturb_points=perturb_points)
-    rand_theta = np.pi*(np.random.rand() - 0.5)
-    # rand_theta = np.random.randn()
-    rope_nodes = rotate_about_median(rope_nodes, rand_theta)
-    r_trans = np.r_[np.random.multivariate_normal([0, 0], np.eye(2)), [0]]
-    rope_nodes = rope_nodes + r_trans    
-    rope_nodes = place_in_feasible_region(rope_nodes)
+    # rand_theta = np.pi*(np.random.rand() - 0.5)
+    # # rand_theta = np.random.randn()
+    # rope_nodes = rotate_about_median(rope_nodes, rand_theta)
+    # r_trans = np.r_[np.random.multivariate_normal([0, 0], np.eye(2)), [0]]
+    # rope_nodes = rope_nodes + r_trans    
+    # rope_nodes = place_in_feasible_region(rope_nodes)
     return rope_nodes
 
 def set_gripper_sim(lr, is_open, prev_is_open, animate=True):
@@ -257,12 +257,12 @@ def exec_traj_sim(bodypart2traj, animate):
     unwrap_in_place(transition_traj)
     transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.05)
     #transition_traj = ropesim.retime_traj(Globals.robot, dof_inds, transition_traj, max_cart_vel=.005)
-    animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=False,
+    animate_traj.animate_traj(transition_traj, Globals.robot, restore=False, pause=True,
                               callback=sim_callback, step_viewer=animate)
     full_traj[0] = transition_traj[-1]
     unwrap_in_place(full_traj)
 
-    animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=False,
+    animate_traj.animate_traj(full_traj, Globals.robot, restore=False, pause=True,
                               callback=sim_callback, step_viewer=animate)
     return True
 

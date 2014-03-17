@@ -4,7 +4,7 @@ import os.path as osp
 import IPython as ipy
 import numpy as np
 import math
-#import cloud
+import cloud
 import cPickle as cp
 
 from rapprentice import clouds
@@ -26,7 +26,7 @@ except:
 DS_SIZE = 0.03
 DEFAULT_TREE_SIZES = [0, 30, 60, 90, 120]
 
-def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None, animate=False, no_cmat=False):
+def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_sizes = None, animate=False, no_cmat=False, warp_root=False):
     """
     generates a bootstrapping tree
     taskfile has the training examples to use
@@ -46,21 +46,22 @@ def run_bootstrap(task_fname, action_fname, bootstrap_fname, burn_in = 40, tree_
     results = []
     for i in range(burn_in):
         print 'doing burn in {}/{}'.format(i, burn_in)
-        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate, no_cmat))
+        res = run_example((task_fname, str(task_ctr), bootstrap_orig, bootstrap_fname, animate, no_cmat, warp_root))
         results.append(res)
-        task_ctr += 1                        
+        task_ctr += 1
     for i in range(max(tree_sizes)):
         print 'doing bootstrapping {}/{}'.format(i, max(tree_sizes))
         if i in tree_sizes:
             bootstrap_i_fname = osp.splitext(bootstrap_fname)[0] + '_{}.h5'.format(i)
             shutil.copyfile(bootstrap_fname, bootstrap_i_fname)
-        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname, animate, no_cmat))
+        res = run_example((task_fname, str(task_ctr), bootstrap_fname, bootstrap_fname, animate, no_cmat, warp_root))
         results.append(res)
         task_ctr += 1
     print 'success rate', sum(results)/float(len(results))
     return sum(results)/float(len(results))
 
-def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no_cmat)):
+#TODO do a map of this for not in the cloud
+def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no_cmat, warp_root)):
     """
     runs a knot-tie attempt for task_id (taken from taskfile
     possible actions are the expert demonstrations in actionfile
@@ -75,7 +76,7 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no
     init_xyz = taskfile[str(task_id)][:]
     taskfile.close()
     # currently set to test that correspondence trick does what we want
-    task_params = TaskParameters(action_fname, init_xyz, animate=animate, no_cmat=no_cmat)
+    task_params = TaskParameters(action_fname, init_xyz, animate=animate, no_cmat=no_cmat, warp_root=warp_root)
     task_results = do_single_task(task_params)
     if task_results['success'] and bootstrap_fname:
         try:
@@ -93,6 +94,21 @@ def run_example((task_fname, task_id, action_fname, bootstrap_fname, animate, no
             bootf.close()
     return task_results['success']
 
+def run_tests_locally(task_fname, action_fname, no_cmat, warp_root):
+    taskfile = h5py.File(task_fname, 'r')
+    num_tests = len(taskfile)
+    results = []
+    for i in range(len(taskfile)):
+        print "Running test with task_fname = ", task_fname
+        print "Action_fname = ", action_fname
+        print "Task ", i
+        result = run_example((task_fname, i, action_fname, '', False, no_cmat, warp_root))
+        print "Result = ", result
+        results.append(result)
+    print 'success rate', sum(results)/float(len(results))
+    return sum(results)/float(len(results))
+
+
 
 class CloudParams:
     def __init__(self):
@@ -105,14 +121,14 @@ class CloudParams:
         self.vol             = 'iros_dat'
         self.core_type       = 'f2'
 
-def create_test_params(local_task_fname, task_fname, action_fname):
+def create_test_params(local_task_fname, task_fname, action_fname, no_cmat):
     """
     The list of params returned by this is to be mapped to run_example
     """
     taskfile   = h5py.File(local_task_fname, 'r')
     ntasks     = len(taskfile.keys())
     taskfile.close()
-    cmd_params = [(task_fname, i, action_fname, "", False) for i in xrange(ntasks)]
+    cmd_params = [(task_fname, i, action_fname, "", False, no_cmat) for i in xrange(ntasks)]
     return cmd_params
 
 
@@ -138,6 +154,7 @@ def run_tests_on_cloud(cloud_params, do_local=False):
         try:
             if not do_local:
                 jids = cloud.map(run_example, cmds, _vol=cloud_params.vol, _env=cloud_params.env, _type=cloud_params.core_type)
+                print colorize("\t submitted %d jobs"%len(jids), "yellow", False)
                 succ = cloud.result(jids)
                 print colorize("\t got results for batch %d/%d "%(i, len(batch_edges)), "green", True)
             else:
@@ -151,7 +168,7 @@ def run_tests_on_cloud(cloud_params, do_local=False):
         cp.dump(all_succ, f)
 
 
-def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="eval_set.h5"):
+def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], test_fname="final_test_set.h5", no_cmat=False):
     """
     @ res_dir       : the directory where the results from the test runs will be saved.
                       the saved results will be like: 
@@ -175,7 +192,7 @@ def test_bootrun(bootrun_name='boot_1', do_nn=False, tree_sizes=[30,60,90,120], 
 
 
     for i in xrange(len(test_action_fnames)):
-        cmd_params      = create_test_params(local_task_fname, task_fname, test_action_fnames[i])
+        cmd_params      = create_test_params(local_task_fname, task_fname, test_action_fnames[i], no_cmat)
         print colorize(" SUBMITTING %d jobs to run on the cloud"%len(cmd_params), "red", True)
         cloud_params    =  CloudParams()
         cloud_params.cmd_params      = cmd_params
@@ -401,8 +418,10 @@ def run_example_test():
 def main():
     args = parse_arguments()
     boot_dir = args.bootstrapping_directory
-    #TODO  Should the boot_fname be different?
-    boot_fname = osp.join(boot_dir, 'test_bootstrapping.h5')
+    boot_fname_leaf = 'boot.h5'
+    if args.tree_sizes:
+        boot_fname_leaf = 'boot_{}.h5'.format(max(args.tree_sizes))
+    boot_fname = osp.join(boot_dir, boot_fname_leaf)
     try:
         os.remove(boot_fname)
     except:
@@ -423,7 +442,7 @@ def main():
         tree_sizes = args.tree_sizes
     else:
         tree_sizes = None
-    success_rate = run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes, animate=args.animate, no_cmat=args.no_cmat)
+    success_rate = run_bootstrap(task_fname, act_fname, boot_fname, burn_in=burn_in, tree_sizes=tree_sizes, animate=args.animate, no_cmat=args.no_cmat, warp_root=args.warp_root)
     import cPickle as cp
     res_fname = osp.join(boot_dir, 'res.cp')
     with open(res_fname, 'w') as f:
@@ -450,14 +469,16 @@ def parse_arguments():
                         help="The number of burn-in iterations to run. The burn-in iterations only uses original segments")
     parser.add_argument("--tree_sizes", type=int, nargs="+", default=None,
                         help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
-    parser.add_argument("--no_cmat", action='store_true')
+    parser.add_argument("--no_cmat", action='store_true', help="If included, then the cmat will not be used when warping to the root.")
+    parser.add_argument("--warp_root", action='store_true', help ="If included, then segments will per warped from the root of the closest segemnt tree.")
     args = parser.parse_args()
     print "args =", args
     return args
 
+
 def testing_main():
     import argparse
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--bootstrap_name", type=str,
                         help="name of the bootstrap directory like : boot_1, boot_2, ...")
@@ -465,16 +486,37 @@ def testing_main():
     parser.add_argument("--tree_sizes", type=int, nargs="+", default=[30,60,90,120],
                         help="A space separated list of the number of bootstrapping iterations each bootstrap file should be created from")
     
-    parser.add_argument("--test_fname", type=str, default="eval_set.h5",
+    parser.add_argument("--test_fname", type=str, default="final_test_set.h5",
                         help="name of test initial states file.")
-    
+    parser.add_argument("--no_cmat", action='store_true')
+
     args = parser.parse_args()
     print args.tree_sizes
-    test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname)
+    test_bootrun(args.bootstrap_name, args.baseline, args.tree_sizes, test_fname=args.test_fname, no_cmat=args.no_cmat)
 
+
+def local_testing_main():
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task_file", type=str,
+                        help="name of the task file")
+    parser.add_argument("actions_file", type=str,
+                        help="The file that contains the actions that will be chosen from (possibly created by bootstrapping.")
+    parser.add_argument("result_file", type=str,
+                        help="The file that contains the result (success rate).")
+    parser.add_argument("--no_cmat", action='store_true', help="If included, then the cmat will not be used when warping to the root.")
+    parser.add_argument("--warp_root", action='store_true', help ="If included, then segments will per warped from the root of the closest segemnt tree.")
+    args = parser.parse_args()
+    success_rate = run_tests_locally(args.task_file, args.actions_file, args.no_cmat, args.warp_root)
+    import cPickle as cp
+    res_fname = args.result_file
+    with open(res_fname, 'w') as f:
+        cp.dump({'success_rate':success_rate, 'args':args}, f)
+    return success_rate
 
 if __name__ == "__main__":
-    main()
+    #main()
     #testing_main()
-
+    local_testing_main()
 
