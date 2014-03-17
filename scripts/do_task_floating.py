@@ -73,7 +73,7 @@ class RopeState:
         self.perturb_num_points = perturb_num_points
 
 class TaskParameters:
-    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=True, max_steps_before_failure=5,
+    def __init__(self, action_file, cloud_xyz, animate=False, warp_root=False, max_steps_before_failure=5,
                  no_cmat=False):
         self.action_file = action_file
         self.cloud_xyz = cloud_xyz
